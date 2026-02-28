@@ -1,5 +1,6 @@
 #include "RasterRenderer.h"
 
+#include "AOITPass.h"
 #include "AaPass.h"
 #include "AoPass.h"
 #include "BilateralFilterDenoiserPass.h"
@@ -14,6 +15,7 @@
 #include "SkyboxPass.h"
 #include "SsrPass.h"
 #include "TonemappingPass.h"
+#include "TransparentBlendPass.h"
 #include "debug/RenderDocApi.h"
 #include "misc/Timer.h"
 #include "scene/LogicalComponents.h"
@@ -50,6 +52,8 @@ RasterRenderer::RasterRenderer(
     directional_shadow_mask_pass = MakeUnique<DirectionalShadowMaskPass>(raster_context);
     geometry_pass                = MakeUnique<GeometryPass>(raster_context);
     lighting_pass                = MakeUnique<LightingPass>(raster_context);
+    transparent_blend_pass       = MakeUnique<TransparentBlendPass>(raster_context);
+    aoit_pass                    = MakeUnique<AOITPass>(raster_context, _config->raster_config.aoit_max_fragments);
     skybox_pass                  = MakeUnique<SkyboxPass>(raster_context);
     ao_pass                      = MakeUnique<AoPass>(raster_context);
     rtao_denoiser_pass           = MakeUnique<RtaoDenoiserPass>(raster_context);
@@ -137,7 +141,7 @@ void RasterRenderer::UpdateGlobalLightingData(
 
     // PCSS
     lighting_data->light_size_world = ui_config.shadow_pcss_light_size_world; //假定的光源大小，用于软阴影计算
-    lighting_data->pcss_enabled     = ui_config.shadow_pcss_enabled ? 1 : 0;
+    lighting_data->pcss_enabled = ui_config.shadow_pcss_enabled ? 1 : 0;
 
     // BRDF
     {
@@ -188,6 +192,10 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
             raster_context.textures.ao_output_ambient_only_1.tex
         );
 #endif
+
+        if (aoit_pass) {
+            aoit_pass->OnResize(raster_context);
+        }
 
         if (hooks.on_raster_register_frame_buffers) {
             hooks.on_raster_register_frame_buffers(raster_context.GetDisplayableFrameBuffersView());
@@ -263,6 +271,15 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
 
         //Env&Atmo Pass
         skybox_pass->Process(raster_context, raster_config, camera);
+
+        // Transparent rendering: AOIT (ground-truth) or simple alpha blend
+        if (editor_config->selected_render_method == ERenderMethod::Raster) {
+            if (raster_config.aoit_enable && aoit_pass) {
+                aoit_pass->Process(raster_context, raster_config, camera);
+            } else {
+                transparent_blend_pass->Process(raster_context, raster_config, camera);
+            }
+        }
 
         // Post Process Passes
         // - Ambient Occlusion

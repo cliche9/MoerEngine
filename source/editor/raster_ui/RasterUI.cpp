@@ -54,6 +54,26 @@ void RasterUI::ShowConfig() {
         ImGui::TreePop();
     }
 
+    if (ImGui::TreeNode("AOIT (Per-Pixel Linked List)")) {
+        ImGui::Checkbox("Enable AOIT", &m_config.aoit_enable);
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Ground-truth Order-Independent Transparency.\n"
+                              "Uses per-pixel linked lists to collect and sort\n"
+                              "all transparent fragments before compositing.\n"
+                              "When enabled, replaces the simple alpha blend pass.");
+        }
+
+        ImGui::BeginDisabled(!m_config.aoit_enable);
+        int max_frags = static_cast<int>(m_config.aoit_max_fragments);
+        ImGui::SliderInt("Max Fragments", &max_frags, 1 << 16, 1 << 26, "%d", ImGuiSliderFlags_Logarithmic);
+        m_config.aoit_max_fragments = static_cast<uint>(std::max(max_frags, 1));
+        ImGui::EndDisabled();
+
+        ImGui::TreePop();
+    }
+
     // MARK: Shading
     if (ImGui::TreeNode(
             "Shading", "Shading: [%s]", s_shading_mode_name_map.at(m_config.shading_mode).c_str()

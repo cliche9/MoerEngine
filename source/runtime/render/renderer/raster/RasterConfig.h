@@ -111,8 +111,12 @@ struct RasterConfig {
 
     // MARK: Geometry
 
-    bool  geometry_enable_alpha_test             = true;
+    bool geometry_enable_alpha_test = true;
     float geometry_alpha_test_blend_pixel_cutoff = 0.5f; // 当AlphaMode为BLEND时，低于该值的像素会被丢弃
+
+    // MARK: AOIT (Per-Pixel Linked List OIT)
+    bool aoit_enable        = false;
+    uint aoit_max_fragments = 1u << 24; // Max fragment pool size (16M entries ~256MB)
 
     // MARK: Shading
     EShadingMode shading_mode = EShadingMode::DEFAULT_PBR;
@@ -218,7 +222,7 @@ struct RasterConfig {
         {0.005, 0.02, 0.1, 0.25, 0.32, 1.0};
 
     // MARK: Skybox
-    bool  skybox_exposure_correct_enabled      = true;         // 启用的话，就会找到第一个平行光，乘上它的颜色
+    bool skybox_exposure_correct_enabled = true; // 启用的话，就会找到第一个平行光，乘上它的颜色
     float skybox_exposure_correct_factor_log10 = log10f(0.5f); // 曝光校正因子
 
     // MARK: Upsample Process

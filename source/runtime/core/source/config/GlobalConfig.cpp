@@ -45,6 +45,10 @@ GlobalConfig GlobalConfig::LoadConfigFromTomlFile(const std::string_view& toml_p
     c.engine.scene.material_info_log_lines =
         config.at_path("engine.scene.material_info_log_lines").value_or(-1); // -1 to log all
 
+    c.engine.scene.force_alpha_blend_materials =
+        config.at_path("engine.scene.force_alpha_blend_materials").value_or(false);
+    c.engine.scene.forced_alpha = config.at_path("engine.scene.forced_alpha").value_or(0.5f);
+
     return c;
 }
 

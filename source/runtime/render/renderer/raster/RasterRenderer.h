@@ -10,6 +10,8 @@ class ShadowDepthPass;
 class GeometryPass;
 class DirectionalShadowMaskPass;
 class LightingPass;
+class TransparentBlendPass;
+class AOITPass;
 class SkyboxPass;
 class AoPass;
 class RtaoDenoiserPass;
@@ -59,6 +61,14 @@ public:
     void
     UpdateGlobalLightingData(RasterContext& context, const RasterConfig& ui_config, const Camera& camera);
 
+protected:
+    RasterContext& GetRasterContext() {
+        return *raster_context_ptr;
+    }
+
+    virtual void
+    ProcessTransparentOIT(RasterContext& context, const RasterConfig& ui_config, const Camera& camera);
+
 private:
     // Context
     UniquePtr<RasterContext> raster_context_ptr; // For forward declaration
@@ -68,6 +78,8 @@ private:
     UniquePtr<DirectionalShadowMaskPass>   directional_shadow_mask_pass;
     UniquePtr<GeometryPass>                geometry_pass;
     UniquePtr<LightingPass>                lighting_pass;
+    UniquePtr<TransparentBlendPass>        transparent_blend_pass;
+    UniquePtr<AOITPass>                    aoit_pass;
     UniquePtr<SkyboxPass>                  skybox_pass;
     UniquePtr<AoPass>                      ao_pass;
     UniquePtr<RtaoDenoiserPass>            rtao_denoiser_pass;

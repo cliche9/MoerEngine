@@ -49,7 +49,11 @@ void EditorUI::InitFromConfigManager() {
     }
 
     // scene path
-    m_config->scene_path = config.engine.scene.scene_path;
+    m_config->scene_path           = config.engine.scene.scene_path;
+    m_config->scene_import_options = SceneImportOptions{
+        .force_alpha_blend_materials = config.engine.scene.force_alpha_blend_materials,
+        .forced_alpha                = config.engine.scene.forced_alpha,
+    };
 }
 
 void EditorUI::TickUI() {
