@@ -11,14 +11,17 @@ Scene::Scene() {
     m_bindless_array = Render::RenderDevice::Get().CreateBindlessArray();
 }
 
-void Scene::LoadSceneFromFileAsync(const std::filesystem::path& file_path) {
-    LambdaTask::Dispatch([this, file_path]() {
+void Scene::LoadSceneFromFileAsync(
+    const std::filesystem::path& file_path,
+    const SceneImportOptions&    import_options
+) {
+    LambdaTask::Dispatch([this, file_path, import_options]() {
         // start
         this->m_scene_load_info.StartLoading();
 
         // 1. logical scene
         this->m_logical_scene = MakeUnique<ecs::LogicalScene>();
-        bool result           = LoaderInterface::LoadSceneFromFile(*this->m_logical_scene, file_path);
+        bool result           = LoaderInterface::LoadSceneFromFile(*this->m_logical_scene, file_path, import_options);
 
         // failed in LogicalScene loading
         if (!result) {

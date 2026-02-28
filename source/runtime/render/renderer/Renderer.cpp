@@ -34,7 +34,7 @@ Renderer::Renderer(uint2& _resolution, const SharedPtr<EditorConfig> _config, co
     {
         bindless_array = scene.bindless_array();
 
-        scene.LoadSceneFromFileAsync(_config->scene_path);
+        scene.LoadSceneFromFileAsync(_config->scene_path, _config->scene_import_options);
 
         SceneGlobalEntry::Get().BindScene(&scene);
     }

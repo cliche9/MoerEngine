@@ -24,7 +24,7 @@ max_frame_in_flight = 3
 
 [engine.render]
 # default_render_method = "Raster"
-default_render_method = "Raytracing"
+default_render_method = "Raster"
 
 [engine.render.raster]
 enable_shadow = true

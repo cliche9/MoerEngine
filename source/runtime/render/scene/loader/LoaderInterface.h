@@ -11,6 +11,11 @@ class LogicalScene;
 
 namespace Moer {
 
+struct SceneImportOptions {
+    bool  force_alpha_blend_materials = false;
+    float forced_alpha                = 1.0f;
+};
+
 /**
  * Loader Interface
  * 
@@ -31,8 +36,11 @@ public:
      * 
      * @return bool 加载是否成功
      */
-    static bool
-    LoadSceneFromFile(ecs::LogicalScene& out_logical_scene, const std::filesystem::path& file_path);
+    static bool LoadSceneFromFile(
+        ecs::LogicalScene&           out_logical_scene,
+        const std::filesystem::path& file_path,
+        const SceneImportOptions&    import_options = SceneImportOptions{}
+    );
 
     /**
      * 从文件异步加载场景数据到out_logical_scene中
@@ -42,12 +50,18 @@ public:
      * 
      * @return SharedPtr<SceneLoadInfoAsync> 场景加载状态信息
      */
-    static SharedPtr<SceneLoadInfoAsync>
-    LoadSceneFromFileAsync(ecs::LogicalScene& out_logical_scene, const std::filesystem::path& file_path);
+    static SharedPtr<SceneLoadInfoAsync> LoadSceneFromFileAsync(
+        ecs::LogicalScene&           out_logical_scene,
+        const std::filesystem::path& file_path,
+        const SceneImportOptions&    import_options = SceneImportOptions{}
+    );
 
 private:
-    static bool
-    LoadSceneFromFileCommon(ecs::LogicalScene& out_logical_scene, const std::filesystem::path& file_path);
+    static bool LoadSceneFromFileCommon(
+        ecs::LogicalScene&           out_logical_scene,
+        const std::filesystem::path& file_path,
+        const SceneImportOptions&    import_options
+    );
 };
 
 } // namespace Moer

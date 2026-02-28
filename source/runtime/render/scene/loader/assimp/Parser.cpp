@@ -15,6 +15,7 @@
 #include "misc/Timer.h"
 #include "misc/Traits.h"
 #include "scene/LogicalScene.h"
+#include "scene/loader/LoaderInterface.h"
 #include "scene/loader/io/ImageIO.h"
 #include "shaderheaders/shared/utils/Packing.h"
 #include "taskgraph/TaskGraph.h"
@@ -34,7 +35,11 @@ int32_t GetEmbeddedTextureId(const std::string& path) {
 }
 
 // PImpl模式，转发
-bool Parser::LoadSceneFromFile(ecs::LogicalScene& out_logical_scene, const std::filesystem::path& file_path) {
+bool Parser::LoadSceneFromFile(
+    ecs::LogicalScene&           out_logical_scene,
+    const std::filesystem::path& file_path,
+    const SceneImportOptions&    import_options
+) {
     // MARK: Assimp
 
     // ai_scene资源的持有者是importer，所以需要注意importer生命周期
@@ -267,30 +272,29 @@ bool Parser::LoadSceneFromFile(ecs::LogicalScene& out_logical_scene, const std::
     // 支持多线程加载纹理
     gtl::parallel_flat_hash_map<std::string, entt::entity> tex_map;
     {
-        const auto available_texture_types = Moer::Array<aiTextureType>{
-            // legacy
-            aiTextureType_DIFFUSE,
-            aiTextureType_SPECULAR,
-            aiTextureType_AMBIENT,
-            aiTextureType_EMISSIVE,
-            aiTextureType_HEIGHT,
-            aiTextureType_NORMALS,
-            aiTextureType_SHININESS,
-            aiTextureType_OPACITY,
-            aiTextureType_DISPLACEMENT,
-            aiTextureType_LIGHTMAP,
-            aiTextureType_REFLECTION,
-            // pbr
-            aiTextureType_BASE_COLOR,
-            aiTextureType_NORMAL_CAMERA,
-            aiTextureType_EMISSION_COLOR,
-            aiTextureType_METALNESS,
-            aiTextureType_DIFFUSE_ROUGHNESS,
-            aiTextureType_AMBIENT_OCCLUSION,
-            // pbr extensions
-            aiTextureType_SHEEN,
-            aiTextureType_CLEARCOAT,
-            aiTextureType_TRANSMISSION
+        const auto available_texture_types = Moer::Array<aiTextureType>{// legacy
+                                                                        aiTextureType_DIFFUSE,
+                                                                        aiTextureType_SPECULAR,
+                                                                        aiTextureType_AMBIENT,
+                                                                        aiTextureType_EMISSIVE,
+                                                                        aiTextureType_HEIGHT,
+                                                                        aiTextureType_NORMALS,
+                                                                        aiTextureType_SHININESS,
+                                                                        aiTextureType_OPACITY,
+                                                                        aiTextureType_DISPLACEMENT,
+                                                                        aiTextureType_LIGHTMAP,
+                                                                        aiTextureType_REFLECTION,
+                                                                        // pbr
+                                                                        aiTextureType_BASE_COLOR,
+                                                                        aiTextureType_NORMAL_CAMERA,
+                                                                        aiTextureType_EMISSION_COLOR,
+                                                                        aiTextureType_METALNESS,
+                                                                        aiTextureType_DIFFUSE_ROUGHNESS,
+                                                                        aiTextureType_AMBIENT_OCCLUSION,
+                                                                        // pbr extensions
+                                                                        aiTextureType_SHEEN,
+                                                                        aiTextureType_CLEARCOAT,
+                                                                        aiTextureType_TRANSMISSION
         };
 
         // 收集所有需要加载的纹理路径
@@ -623,6 +627,13 @@ bool Parser::LoadSceneFromFile(ecs::LogicalScene& out_logical_scene, const std::
             load_roughness_factor(c_material, material);
 
             load_alpha_param(c_material, material);
+
+            if (import_options.force_alpha_blend_materials) {
+                c_material.alpha_mode      = EAlphaMode::Blend;
+                c_material.albedo_factor.w = import_options.forced_alpha;
+                mat_ss << "\t\tOverride Alpha Mode: BLEND. Forced Alpha: " << c_material.albedo_factor.w
+                       << "\n";
+            }
         }
     }
 

@@ -8,7 +8,8 @@
 
 namespace Moer {
 
-using LoadFunction = std::function<bool(ecs::LogicalScene&, const std::filesystem::path&)>;
+using LoadFunction =
+    std::function<bool(ecs::LogicalScene&, const std::filesystem::path&, const SceneImportOptions&)>;
 static Moer::Map<std::string, LoadFunction> scene_load_function_maps = {
     {"gltf", assimp::Parser::LoadSceneFromFile},
     {"glb", assimp::Parser::LoadSceneFromFile},
@@ -19,27 +20,29 @@ static Moer::Map<std::string, LoadFunction> scene_load_function_maps = {
 
 bool LoaderInterface::LoadSceneFromFile(
     ecs::LogicalScene&           out_logical_scene,
-    const std::filesystem::path& file_path
+    const std::filesystem::path& file_path,
+    const SceneImportOptions&    import_options
 ) {
     LOG_INFO("Start loading LogicalScene from file: {}", file_path.string());
 
-    return LoaderInterface::LoadSceneFromFileCommon(out_logical_scene, file_path);
+    return LoaderInterface::LoadSceneFromFileCommon(out_logical_scene, file_path, import_options);
 }
 
 // 在目前实现中，我们不调用这个接口，而是Scene类同时异步加载LogicalScene, CpuScene和GpuScene
 // - 三个Scene一起异步，而不是此函数只异步LogicalScene
 SharedPtr<SceneLoadInfoAsync> LoaderInterface::LoadSceneFromFileAsync(
     ecs::LogicalScene&           out_logical_scene,
-    const std::filesystem::path& file_path
+    const std::filesystem::path& file_path,
+    const SceneImportOptions&    import_options
 ) {
     LOG_INFO("Start loading LogicalScene from file \"Async\": {}", file_path.string());
 
     SharedPtr<SceneLoadInfoAsync> load_info = MakeShared<SceneLoadInfoAsync>();
 
-    LambdaTask::Dispatch([load_info, &out_logical_scene, file_path]() {
+    LambdaTask::Dispatch([load_info, &out_logical_scene, file_path, import_options]() {
         load_info->StartLoading();
 
-        bool result = LoaderInterface::LoadSceneFromFileCommon(out_logical_scene, file_path);
+        bool result = LoaderInterface::LoadSceneFromFileCommon(out_logical_scene, file_path, import_options);
 
         if (result) {
             load_info->FinishLoading();
@@ -54,7 +57,8 @@ SharedPtr<SceneLoadInfoAsync> LoaderInterface::LoadSceneFromFileAsync(
 
 bool LoaderInterface::LoadSceneFromFileCommon(
     ecs::LogicalScene&           out_logical_scene,
-    const std::filesystem::path& file_path
+    const std::filesystem::path& file_path,
+    const SceneImportOptions&    import_options
 ) {
     // TODO: cache
     // bool is_enabled_cache = ConfigManager::GetInstance().GetConfig().engine.scene.enable_cache;
@@ -67,7 +71,7 @@ bool LoaderInterface::LoadSceneFromFileCommon(
         return false;
     }
 
-    bool result = scene_load_function_maps[ext](out_logical_scene, file_path);
+    bool result = scene_load_function_maps[ext](out_logical_scene, file_path, import_options);
 
     if (!result) {
         LOG_ERROR("Loading Logical Scene - Failed to load scene from file: {}", file_path.string());

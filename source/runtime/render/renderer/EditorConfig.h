@@ -4,6 +4,7 @@
 
 #include "raster/RasterConfig.h"
 #include "raytracing/RaytracingConfig.h"
+#include "scene/loader/LoaderInterface.h"
 
 namespace Moer {
 
@@ -25,6 +26,7 @@ struct EditorConfig {
 
     RasterConfig     raster_config;
     RaytracingConfig raytracing_config;
+    SceneImportOptions scene_import_options;
 
     // 为了避免数据不一致，这里对resolution进行封装。引擎中必须优先保证该struct中的resolution是正确的
 private:

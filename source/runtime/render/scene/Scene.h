@@ -6,6 +6,7 @@
 #include "RenderAPI.h"
 #include "SceneLoadInfoAsync.h"
 #include "entt/entity/fwd.hpp"
+#include "loader/LoaderInterface.h"
 #include "scene/LogicalComponents.h"
 #include <filesystem>
 
@@ -45,7 +46,10 @@ public:
      * 
      * 读取数据位于 SceneLoadInfo 中，可以通过 SceneLoadInfo::Get() 访问
      */
-    void LoadSceneFromFileAsync(const std::filesystem::path& file_path);
+    void LoadSceneFromFileAsync(
+        const std::filesystem::path& file_path,
+        const SceneImportOptions&    import_options = SceneImportOptions{}
+    );
 
     /**
      * 每帧调用，更新CpuScene和GpuScene数据

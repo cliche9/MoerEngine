@@ -2,9 +2,12 @@
 
 #include <filesystem>
 
-namespace Moer { namespace ecs {
+namespace Moer {
+class SceneImportOptions;
+namespace ecs {
 class LogicalScene;
-}} // namespace Moer::ecs
+}
+} // namespace Moer
 
 namespace Moer::assimp {
 class Parser {
@@ -12,7 +15,10 @@ public:
     Parser()  = default;
     ~Parser() = default;
 
-    static bool
-    LoadSceneFromFile(ecs::LogicalScene& out_logical_scene, const std::filesystem::path& file_path);
+    static bool LoadSceneFromFile(
+        ecs::LogicalScene&           out_logical_scene,
+        const std::filesystem::path& file_path,
+        const SceneImportOptions&    import_options
+    );
 };
 } // namespace Moer::assimp

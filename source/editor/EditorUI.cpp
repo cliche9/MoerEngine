@@ -310,6 +310,23 @@ void EditorUI::ShowConfig() {
         ImGui::Text("Current: [%s]", scene_name.c_str());
     }
 
+    { // Scene Import Options
+        bool  force_alpha_blend = m_config->scene_import_options.force_alpha_blend_materials;
+        float forced_alpha      = m_config->scene_import_options.forced_alpha;
+
+        if (ImGui::Checkbox("Force Alpha Blend Materials", &force_alpha_blend)) {
+            m_config->scene_import_options.force_alpha_blend_materials = force_alpha_blend;
+            m_b_need_reload                                            = true;
+        }
+
+        ImGui::BeginDisabled(!m_config->scene_import_options.force_alpha_blend_materials);
+        if (ImGui::SliderFloat("Imported Material Alpha", &forced_alpha, 0.0f, 1.0f, "%.2f")) {
+            m_config->scene_import_options.forced_alpha = forced_alpha;
+            m_b_need_reload                             = true;
+        }
+        ImGui::EndDisabled();
+    }
+
     if (ImGui::TreeNode("Camera")) {
 
         ImGui::SliderFloat("Speed (log10)", &m_config->camera_speed_log10, -1.f, 2.6f);
