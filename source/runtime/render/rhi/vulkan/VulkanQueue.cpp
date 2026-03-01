@@ -512,11 +512,11 @@ struct VkCmdPreprocessor {
                 using T = std::decay_t<decltype(_arg)>;
                 if constexpr (std::is_same_v<T, uint3>) {
                     return;
-                } else if constexpr (std::is_same_v<T, BufferView>) {
+                } else if constexpr (std::is_same_v<T, DispatchIndirectParam>) {
                     tracker.RecordState(
-                        reinterpret_cast<VulkanBuffer*>(_arg.GetBuffer()),
-                        VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT
+                        reinterpret_cast<VulkanBuffer*>(_arg.indirect.GetBuffer()),
+                        VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
+                        VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT
                     );
                 }
             },

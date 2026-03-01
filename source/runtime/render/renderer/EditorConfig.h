@@ -24,8 +24,8 @@ struct EditorConfig {
     float camera_far_clip_log10  = 3.f;
     float camera_near_clip_log10 = -2.f;
 
-    RasterConfig     raster_config;
-    RaytracingConfig raytracing_config;
+    RasterConfig       raster_config;
+    RaytracingConfig   raytracing_config;
     SceneImportOptions scene_import_options;
 
     // 为了避免数据不一致，这里对resolution进行封装。引擎中必须优先保证该struct中的resolution是正确的

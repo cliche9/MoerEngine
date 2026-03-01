@@ -78,15 +78,11 @@ void Engine::Init(int argc, const char** argv) {
         return ERHIType::Vulkan;
     }();
 
-    RenderDevice::Init(
-        std::move(
-            DeviceInitInfo{
-                .rhi_type        = rhi_type,
-                .name            = "MoerEngine",
-                .rhi_api_version = ConfigManager::GetInstance().GetConfig().engine.rhi.api_version,
-            }
-        )
-    );
+    RenderDevice::Init(std::move(DeviceInitInfo{
+        .rhi_type        = rhi_type,
+        .name            = "MoerEngine",
+        .rhi_api_version = ConfigManager::GetInstance().GetConfig().engine.rhi.api_version,
+    }));
 
     ShaderManager::Get(); // Explicit Init ShaderManager
 
