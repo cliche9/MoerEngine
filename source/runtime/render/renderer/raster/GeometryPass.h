@@ -74,10 +74,16 @@ public:
 
         // 1. Params
 
+        const auto& gpu_scene_res = context.scene.gpu_scene_res();
+
+        if (!gpu_scene_res.draw_cmd_opaque_buf.buf ||
+            gpu_scene_res.draw_cmd_opaque_buf.buf->GetNumElement() == 0) {
+            return;
+        }
+
         GeometryPassBindlessParam param;
         param.world2clip = Transpose(camera.GetViewProjectionMatrix());
 
-        const auto& gpu_scene_res    = context.scene.gpu_scene_res();
         param.instance_buf_hdl       = gpu_scene_res.instance_buf.hdl;
         param.primitive_buf_hdl      = gpu_scene_res.primitive_buf.hdl;
         param.position_buf_hdl       = gpu_scene_res.position_buf.hdl;
@@ -102,9 +108,9 @@ public:
                 rect2d,
                 {}, // Vertex Buffers 通过 Bindless 访问
                 IndexBuffer{gpu_scene_res.index_buf.buf->GetView(), EIndexElementType::IET_UINT32},
-                gpu_scene_res.draw_cmd_buf.buf->GetView(),       // DrawIndexedCmdData 数组
-                gpu_scene_res.draw_cmd_buf.buf->GetNumElement(), // CPU count
-                gpu_scene_res.draw_cmd_buf.buf->GetStride(),
+                gpu_scene_res.draw_cmd_opaque_buf.buf->GetView(),       // opaque DrawIndexedCmdData
+                gpu_scene_res.draw_cmd_opaque_buf.buf->GetNumElement(), // CPU count
+                gpu_scene_res.draw_cmd_opaque_buf.buf->GetStride(),
                 DepthAttachment(context.textures.depth_linear_sampler.tex->GetView().GetTexture()),
                 ColorAttachment(context.textures.vbuffer.tex),
                 ColorAttachment(context.textures.normal.tex),

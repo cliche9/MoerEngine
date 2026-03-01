@@ -284,13 +284,10 @@ void CpuScene::InitializeMeshes() {
                 for (const entt::entity primitive_entt : c_mesh.primitive_entts) {
                     const uint primitive_id = m_map_primitive_entity_to_id[primitive_entt];
 
-                    m_primitive_id_to_transform_entt_arrays[primitive_id].emplace_back(
-                        GInstance{
-                            .world_transform =
-                                Transpose(c_transform.d_world_transform), // HLSL列主序，需要转置
-                            .primitive_id = primitive_id                  // 存储 Primitive ID 用于反向映射
-                        }
-                    );
+                    m_primitive_id_to_transform_entt_arrays[primitive_id].emplace_back(GInstance{
+                        .world_transform = Transpose(c_transform.d_world_transform), // HLSL列主序，需要转置
+                        .primitive_id = primitive_id // 存储 Primitive ID 用于反向映射
+                    });
                     instance_cnt++;
                 }
             }
@@ -372,6 +369,25 @@ void CpuScene::InitializeMeshes() {
 
             m_draw_cmd_buf.emplace_back(draw_cmd_data);
         });
+    }
+
+    {
+        // 4. Split draw commands by alpha mode: opaque/mask vs blend
+        m_draw_cmd_opaque_buf.clear();
+        m_draw_cmd_alpha_blend_buf.clear();
+        m_draw_cmd_opaque_buf.reserve(m_draw_cmd_buf.size());
+        m_draw_cmd_alpha_blend_buf.reserve(m_draw_cmd_buf.size());
+
+        for (uint i = 0; i < m_draw_cmd_buf.size(); ++i) {
+            const auto& draw_cmd = m_draw_cmd_buf[i];
+            const uint  mat_idx  = m_primitive_buf[i].material_idx;
+            if (mat_idx < m_material_buf.size() &&
+                static_cast<EAlphaMode>(m_material_buf[mat_idx].alpha_mode) == EAlphaMode::Blend) {
+                m_draw_cmd_alpha_blend_buf.emplace_back(draw_cmd);
+            } else {
+                m_draw_cmd_opaque_buf.emplace_back(draw_cmd);
+            }
+        }
     }
 
     {

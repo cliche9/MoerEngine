@@ -119,8 +119,10 @@ private:
     void UpdateMaterials();
 
     // mesh
-    Array<Render::DrawIndexedCmdData> m_draw_cmd_buf;  // 1:1 GPrimitive
-    Array<GPrimitive>                 m_primitive_buf; // 1:1 GPrimitive & DrawIndexedCmdData
+    Array<Render::DrawIndexedCmdData> m_draw_cmd_buf;             // 1:1 GPrimitive (all draw commands)
+    Array<Render::DrawIndexedCmdData> m_draw_cmd_opaque_buf;      // Opaque + Mask materials only
+    Array<Render::DrawIndexedCmdData> m_draw_cmd_alpha_blend_buf; // Blend materials only
+    Array<GPrimitive>                 m_primitive_buf;            // 1:1 GPrimitive & DrawIndexedCmdData
     // primitive_buf 与 draw_cmd_buf 是对应的，index相同则对应相同primitive
     Array<GInstance> m_instance_buf; // N:1 GPrimitive
     /**

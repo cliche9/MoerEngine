@@ -24,7 +24,7 @@ namespace Moer {
 
 struct GeometryPassBindlessParam {
     float4x4 world2clip;
-    
+
     // Bindless handles for bindless rendering
     uint material_buf_hdl;  // Array<GMaterial>
     uint instance_buf_hdl;  // Array<GInstance>
@@ -38,6 +38,15 @@ struct GeometryPassBindlessParam {
     // about material & alpha test
     uint  enable_alpha_test;
     float alpha_test_blend_pixel_cutoff;
+
+    // forward-shading fields (used by TransparentBlendPass / AOIT collect)
+    uint   light_buf_hdl;       // Array<GLight>
+    uint   global_param_handle; // LightingData buffer handle
+    uint   _pad0;               // explicit padding: float3 must start on 16-byte boundary (DX cbuffer layout)
+    float3 extra_ambient_color;
+    float  extra_ambient_intensity;
+    uint   enable_extra_ambient;
+    uint   _pad1;
 };
 
 // MARK: Main Content End

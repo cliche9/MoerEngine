@@ -144,7 +144,8 @@ public:
     void Process(RasterContext& context, const RasterConfig& ui_config, const Camera& camera) {
         const auto& gpu_scene_res = context.scene.gpu_scene_res();
 
-        if (gpu_scene_res.draw_cmd_alpha_blend_count == 0) {
+        if (!gpu_scene_res.draw_cmd_alpha_blend_buf.buf ||
+            gpu_scene_res.draw_cmd_alpha_blend_buf.buf->GetNumElement() == 0) {
             return;
         }
 
@@ -191,7 +192,7 @@ public:
                 {},
                 IndexBuffer{gpu_scene_res.index_buf.buf->GetView(), EIndexElementType::IET_UINT32},
                 gpu_scene_res.draw_cmd_alpha_blend_buf.buf->GetView(),
-                gpu_scene_res.draw_cmd_alpha_blend_count,
+                gpu_scene_res.draw_cmd_alpha_blend_buf.buf->GetNumElement(),
                 gpu_scene_res.draw_cmd_alpha_blend_buf.buf->GetStride(),
                 [&]() {
                     DepthAttachment depth_attachment(

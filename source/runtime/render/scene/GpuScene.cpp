@@ -145,6 +145,22 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
     );
 
+    if (!m_cpu_scene.m_draw_cmd_opaque_buf.empty()) {
+        m_res.draw_cmd_opaque_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
+            "GpuScene::DrawCmdOpaqueBuffer",
+            m_cpu_scene.m_draw_cmd_opaque_buf.size(),
+            EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
+        );
+    }
+
+    if (!m_cpu_scene.m_draw_cmd_alpha_blend_buf.empty()) {
+        m_res.draw_cmd_alpha_blend_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
+            "GpuScene::DrawCmdAlphaBlendBuffer",
+            m_cpu_scene.m_draw_cmd_alpha_blend_buf.size(),
+            EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
+        );
+    }
+
     m_res.primitive_buf.buf = device.CreateBuffer<byte>(
         "GpuScene::PrimitiveBuffer",
         m_cpu_scene.m_primitive_buf.size() * sizeof(GPrimitive),
@@ -217,6 +233,28 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
         m_res.draw_cmd_buf.buf->GetView(),
         "CopyFrom GpuScene::DrawCmdBuffer"
     );
+
+    if (m_res.draw_cmd_opaque_buf.buf) {
+        cmd_list.CopyFrom(
+            std::span<byte>(
+                (byte*)m_cpu_scene.m_draw_cmd_opaque_buf.data(),
+                m_cpu_scene.m_draw_cmd_opaque_buf.size() * sizeof(Render::DrawIndexedCmdData)
+            ),
+            m_res.draw_cmd_opaque_buf.buf->GetView(),
+            "CopyFrom GpuScene::DrawCmdOpaqueBuffer"
+        );
+    }
+
+    if (m_res.draw_cmd_alpha_blend_buf.buf) {
+        cmd_list.CopyFrom(
+            std::span<byte>(
+                (byte*)m_cpu_scene.m_draw_cmd_alpha_blend_buf.data(),
+                m_cpu_scene.m_draw_cmd_alpha_blend_buf.size() * sizeof(Render::DrawIndexedCmdData)
+            ),
+            m_res.draw_cmd_alpha_blend_buf.buf->GetView(),
+            "CopyFrom GpuScene::DrawCmdAlphaBlendBuffer"
+        );
+    }
 
     cmd_list.CopyFrom(
         std::span<byte>(
@@ -299,6 +337,13 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
         &m_res.texcoord0_buf,
         &m_res.index_buf,
     };
+
+    if (m_res.draw_cmd_opaque_buf.buf) {
+        buffers.push_back(&m_res.draw_cmd_opaque_buf);
+    }
+    if (m_res.draw_cmd_alpha_blend_buf.buf) {
+        buffers.push_back(&m_res.draw_cmd_alpha_blend_buf);
+    }
 
     for (auto& buf_with_hdl_ptr : buffers) {
         BufferWithHandle& buf_with_hdl = *buf_with_hdl_ptr;

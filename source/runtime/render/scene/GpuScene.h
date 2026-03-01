@@ -38,7 +38,9 @@ public:
         BufferWithHandle material_buf;
 
         // mesh
-        BufferWithHandle draw_cmd_buf;
+        BufferWithHandle draw_cmd_buf;             // all draw commands (for shadow, etc.)
+        BufferWithHandle draw_cmd_opaque_buf;      // opaque/mask only
+        BufferWithHandle draw_cmd_alpha_blend_buf; // blend only
         BufferWithHandle primitive_buf;
         BufferWithHandle instance_buf;
 
