@@ -5,6 +5,7 @@
 #include "shader/ShaderMutation.h"
 #include "shader/ShaderPipeline.h"
 #include "shaderheaders/shared/raster/aoit/AOITData.h"
+#include "shaderheaders/shared/raster/aoit/AOITResolveParam.h"
 #include "shaderheaders/shared/raster/geometry_pass/ShaderParameters.h"
 
 #include "RasterConfig.h"
@@ -17,9 +18,12 @@ namespace Moer::Render::Raster {
 // ============================================================================
 
 /**
- * Raster pipeline for collecting transparent fragments into a per-pixel linked list.
+ * Raster pipeline for the Visibility Buffer collect pass.
+ * Stores (instance_id, triangle_id, depth) into a per-pixel linked list.
+ * No color attachment - depth test only + UAV writes.
+ *
  * head_pointer_tex = RWTexture2D<uint> (per-pixel linked list head)
- * counter_buf      = RWBuffer<uint>    (atomic allocation counter, 1 element)
+ * counter_buf      = RWBuffer<uint>    (atomic allocation counter)
  * fragment_pool_buf= RWBuffer<uint4>   (fragment pool)
  */
 class AOITCollectPipeline : public RasterPipeline {
@@ -37,8 +41,9 @@ public:
 };
 
 /**
- * Compute pipeline for resolving the per-pixel linked list:
- * sort fragments by depth and composite over the opaque scene color.
+ * Compute pipeline for the Visibility Buffer resolve pass.
+ * Walks linked list, reconstructs geometry from triangle IDs,
+ * evaluates full PBR shading, sorts and composites.
  */
 class AOITResolvePipeline : public ComputePipeline {
 public:
@@ -48,11 +53,12 @@ public:
     DEFINE_SHADER_BUFFER(fragment_pool_buf);
     DEFINE_SHADER_TEX(output_image);
     DEFINE_SHADER_BINDLESS_ARRAY(bdls);
-    DEFINE_SHADER_ARGS(head_pointer_tex, counter_buf, fragment_pool_buf, output_image, bdls);
+    DEFINE_SHADER_CONSTANT_STRUCT(AOITResolveParam, resolve_param);
+    DEFINE_SHADER_ARGS(head_pointer_tex, counter_buf, fragment_pool_buf, output_image, bdls, resolve_param);
 };
 
 // ============================================================================
-// AOITPass
+// AOITPass  (Visibility Buffer AOIT)
 // ============================================================================
 
 class AOITPass {
@@ -60,14 +66,12 @@ public:
     explicit AOITPass(RasterContext& context, uint max_fragments = 1u << 20) :
         m_pool_allocated_size(max_fragments) {
 
-        // ---- Collect raster pipeline ----
+        // ---- Collect raster pipeline (depth-only, no color attachment) ----
         {
             GfxPsoCreateInfo pso_info(
                 RHIRasterizeInfo::Preset(), // cull none (default)
                 {},                         // vertex stream (bindless)
-                {RHIColorAttachmentInfo::Preset<Blend::ALPHA_BLEND>(
-                    context.textures.lighting_output.tex->GetFormat()
-                )},
+                {},                         // NO color attachments (visbuf collect writes to UAVs only)
                 RHIDepthStencilStateInfo(false, CO_GREATER), // depth test, no write, reversed-Z
                 context.textures.depth_linear_sampler.tex->GetFormat()
             );
@@ -103,12 +107,12 @@ public:
         );
 
         // Counter buffer: [0]=atomic counter, [1]=pool capacity
-        // Both set every frame via ClearResource (vkCmdFillBuffer) - no CopyFrom needed
         m_counter_buf = context.device.CreateBuffer<uint>(
             "AOIT::Counter", 2, EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::TRANSFER_DST
         );
 
-        // Fragment pool: each fragment = uint4 (next, depth, packed_rg, packed_ba)
+        // Fragment pool: each fragment = uint4 (next, depth_bits, packed_vis_info, 0)
+        // .yz = 64-bit vis_depth for atomic depth testing
         m_fragment_pool_buf = context.device.CreateBuffer<uint4>(
             "AOIT::FragmentPool", max_fragments, EBufferUsageFlags::UNORDERED_ACCESS
         );
@@ -153,7 +157,6 @@ public:
         // 1. Clear: reset head pointers and atomic counter
         // ====================================================================
         context.cmd_list.ClearResource(m_head_pointer_tex->GetView(), (uint32_t)AOIT_INVALID_POINTER);
-        // counter_buf[0] = 0 (atomic counter), counter_buf[1] = pool capacity (clamped to actual buffer)
         uint effective_max = std::min(ui_config.aoit_max_fragments, m_pool_allocated_size);
         context.cmd_list.ClearResource(m_counter_buf->GetView(0, sizeof(uint)), (uint32_t)0);
         context.cmd_list.ClearResource(
@@ -161,33 +164,35 @@ public:
         );
 
         // ====================================================================
-        // 2. Collect: rasterize transparent geometry, insert into linked list
+        // 2. Collect: rasterize transparent geometry (visibility buffer)
         // ====================================================================
-        GeometryPassBindlessParam param;
-        param.world2clip = Transpose(camera.GetViewProjectionMatrix());
+        GeometryPassBindlessParam collect_param;
+        collect_param.world2clip = Transpose(camera.GetViewProjectionMatrix());
 
-        param.instance_buf_hdl       = gpu_scene_res.instance_buf.hdl;
-        param.primitive_buf_hdl      = gpu_scene_res.primitive_buf.hdl;
-        param.position_buf_hdl       = gpu_scene_res.position_buf.hdl;
-        param.packed_normal_buf_hdl  = gpu_scene_res.packed_normal_buf.hdl;
-        param.packed_tangent_buf_hdl = gpu_scene_res.packed_tangent_buf.hdl;
-        param.texcoord0_buf_hdl      = gpu_scene_res.texcoord0_buf.hdl;
-        param.material_buf_hdl       = gpu_scene_res.material_buf.hdl;
+        collect_param.instance_buf_hdl       = gpu_scene_res.instance_buf.hdl;
+        collect_param.primitive_buf_hdl      = gpu_scene_res.primitive_buf.hdl;
+        collect_param.position_buf_hdl       = gpu_scene_res.position_buf.hdl;
+        collect_param.packed_normal_buf_hdl  = gpu_scene_res.packed_normal_buf.hdl;
+        collect_param.packed_tangent_buf_hdl = gpu_scene_res.packed_tangent_buf.hdl;
+        collect_param.texcoord0_buf_hdl      = gpu_scene_res.texcoord0_buf.hdl;
+        collect_param.material_buf_hdl       = gpu_scene_res.material_buf.hdl;
 
-        param.enable_alpha_test             = ui_config.geometry_enable_alpha_test ? 1 : 0;
-        param.alpha_test_blend_pixel_cutoff = ui_config.geometry_alpha_test_blend_pixel_cutoff;
-        param.light_buf_hdl                 = gpu_scene_res.light_buf.hdl;
-        param.global_param_handle           = context.lighting_data_buffer.hdl;
-        param.extra_ambient_color           = ui_config.shading_extra_ambient_color;
-        param.extra_ambient_intensity       = ui_config.shading_extra_ambient_intensity;
-        param.enable_extra_ambient          = ui_config.shading_enable_extra_ambient ? 1u : 0u;
+        collect_param.enable_alpha_test             = ui_config.geometry_enable_alpha_test ? 1 : 0;
+        collect_param.alpha_test_blend_pixel_cutoff = ui_config.geometry_alpha_test_blend_pixel_cutoff;
 
         auto rect2d = context.textures.lighting_output.GetRect2D();
 
         context.cmd_list
-            .Gfx(m_collect_pso, m_head_pointer_tex, m_counter_buf, m_fragment_pool_buf, context.bdls, param)
+            .Gfx(
+                m_collect_pso,
+                m_head_pointer_tex,
+                m_counter_buf,
+                m_fragment_pool_buf,
+                context.bdls,
+                collect_param
+            )
             .DrawIndirect(
-                "AOIT Collect",
+                "AOIT VisBuf Collect",
                 rect2d,
                 {},
                 IndexBuffer{gpu_scene_res.index_buf.buf->GetView(), EIndexElementType::IET_UINT32},
@@ -200,16 +205,12 @@ public:
                     );
                     depth_attachment.action = AC_DS_LOAD_STORE;
                     return depth_attachment;
-                }(),
-                [&]() {
-                    ColorAttachment color_attachment{context.textures.lighting_output.tex};
-                    color_attachment.action = AC_LOAD_STORE;
-                    return color_attachment;
                 }()
+                // No color attachment — visibility buffer collect writes to UAVs only
             );
 
         // ====================================================================
-        // 3. Resolve: sort & composite fragments over opaque scene color
+        // 3. Resolve: reconstruct geometry, shade, sort & composite
         // ====================================================================
 
         // Copy opaque lighting_output -> resolve_output (so compute can read-modify-write)
@@ -219,6 +220,26 @@ public:
             "AOIT Copy Opaque To Resolve"
         );
 
+        // Set up resolve push constant with all scene buffer handles
+        AOITResolveParam resolve_param;
+        resolve_param.clip2world = Transpose(camera.GetViewProjectionMatrixInv());
+
+        resolve_param.instance_buf_hdl       = gpu_scene_res.instance_buf.hdl;
+        resolve_param.primitive_buf_hdl      = gpu_scene_res.primitive_buf.hdl;
+        resolve_param.index_buf_hdl          = gpu_scene_res.index_buf.hdl;
+        resolve_param.position_buf_hdl       = gpu_scene_res.position_buf.hdl;
+        resolve_param.packed_normal_buf_hdl  = gpu_scene_res.packed_normal_buf.hdl;
+        resolve_param.packed_tangent_buf_hdl = gpu_scene_res.packed_tangent_buf.hdl;
+        resolve_param.texcoord0_buf_hdl      = gpu_scene_res.texcoord0_buf.hdl;
+        resolve_param.material_buf_hdl       = gpu_scene_res.material_buf.hdl;
+
+        resolve_param.light_buf_hdl       = gpu_scene_res.light_buf.hdl;
+        resolve_param.global_param_handle = context.lighting_data_buffer.hdl;
+
+        resolve_param.enable_extra_ambient    = ui_config.shading_enable_extra_ambient ? 1u : 0u;
+        resolve_param.extra_ambient_color     = ui_config.shading_extra_ambient_color;
+        resolve_param.extra_ambient_intensity = ui_config.shading_extra_ambient_intensity;
+
         uint2 res = context.GetResolutionOriginal();
         context.cmd_list
             .Compute(
@@ -227,9 +248,10 @@ public:
                 m_counter_buf,
                 m_fragment_pool_buf,
                 m_resolve_output_tex,
-                context.bdls
+                context.bdls,
+                resolve_param
             )
-            .Dispatch(uint3((res.x + 7u) / 8u, (res.y + 7u) / 8u, 1u), "AOIT Resolve");
+            .Dispatch(uint3((res.x + 7u) / 8u, (res.y + 7u) / 8u, 1u), "AOIT VisBuf Resolve");
 
         // Copy the composited result back to lighting_output
         context.cmd_list.CopyFrom(
