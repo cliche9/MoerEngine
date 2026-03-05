@@ -13,6 +13,7 @@
 #include "RtaoDenoiserPass.h"
 #include "ShadowDepthPass.h"
 #include "SkyboxPass.h"
+#include "SoftRasterOITPass.h"
 #include "SsrPass.h"
 #include "TonemappingPass.h"
 #include "TransparentBlendPass.h"
@@ -53,15 +54,20 @@ RasterRenderer::RasterRenderer(
     geometry_pass                = MakeUnique<GeometryPass>(raster_context);
     lighting_pass                = MakeUnique<LightingPass>(raster_context);
     transparent_blend_pass       = MakeUnique<TransparentBlendPass>(raster_context);
-    aoit_pass          = MakeUnique<AOITPass>(raster_context, _config->raster_config.aoit_max_fragments);
-    skybox_pass        = MakeUnique<SkyboxPass>(raster_context);
-    ao_pass            = MakeUnique<AoPass>(raster_context);
-    rtao_denoiser_pass = MakeUnique<RtaoDenoiserPass>(raster_context);
-    bfd_pass           = MakeUnique<BilateralFilterDenoiserPass>(raster_context);
-    ssr_pass           = MakeUnique<SsrPass>(raster_context);
-    aa_pass            = MakeUnique<AaPass>(raster_context);
-    bloom_pass         = MakeUnique<BloomPass>(raster_context);
-    tonemapping_pass   = MakeUnique<TonemappingPass>(raster_context);
+    aoit_pass            = MakeUnique<AOITPass>(raster_context, _config->raster_config.aoit_max_fragments);
+    soft_raster_oit_pass = MakeUnique<SoftRasterOITPass>(
+        raster_context,
+        _config->raster_config.soft_raster_oit_max_triangles,
+        _config->raster_config.soft_raster_oit_max_fragments
+    );
+    skybox_pass          = MakeUnique<SkyboxPass>(raster_context);
+    ao_pass              = MakeUnique<AoPass>(raster_context);
+    rtao_denoiser_pass   = MakeUnique<RtaoDenoiserPass>(raster_context);
+    bfd_pass             = MakeUnique<BilateralFilterDenoiserPass>(raster_context);
+    ssr_pass             = MakeUnique<SsrPass>(raster_context);
+    aa_pass              = MakeUnique<AaPass>(raster_context);
+    bloom_pass           = MakeUnique<BloomPass>(raster_context);
+    tonemapping_pass     = MakeUnique<TonemappingPass>(raster_context);
 
 #if WITH_CUDA
     // 固定CudaPass位于AoPass之后（需要保证AoPass必定往 ao_output 中写入数据
@@ -196,6 +202,9 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
         if (aoit_pass) {
             aoit_pass->OnResize(raster_context);
         }
+        if (soft_raster_oit_pass) {
+            soft_raster_oit_pass->OnResize(raster_context);
+        }
 
         if (hooks.on_raster_register_frame_buffers) {
             hooks.on_raster_register_frame_buffers(raster_context.GetDisplayableFrameBuffersView());
@@ -274,7 +283,9 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
 
         // Transparent rendering: AOIT (ground-truth) or simple alpha blend
         if (editor_config->selected_render_method == ERenderMethod::Raster) {
-            if (raster_config.aoit_enable && aoit_pass) {
+            if (raster_config.soft_raster_oit_enable && soft_raster_oit_pass) {
+                soft_raster_oit_pass->Process(raster_context, raster_config, camera);
+            } else if (raster_config.aoit_enable && aoit_pass) {
                 aoit_pass->Process(raster_context, raster_config, camera);
             } else {
                 transparent_blend_pass->Process(raster_context, raster_config, camera);

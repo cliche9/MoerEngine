@@ -87,6 +87,14 @@ public:
      */
     uint GetLightCount() const;
 
+    /**
+     * 获取 Alpha-Blend 绘制命令列表（只读）
+     * 用于软光栅管线在CPU侧计算总三角形数。
+     */
+    const Array<Render::DrawIndexedCmdData>& GetAlphaBlendDrawCmds() const {
+        return m_draw_cmd_alpha_blend_buf;
+    }
+
 private:
     ecs::LogicalScene& m_logical_scene;
 

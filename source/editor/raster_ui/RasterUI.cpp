@@ -74,6 +74,50 @@ void RasterUI::ShowConfig() {
         ImGui::TreePop();
     }
 
+    if (ImGui::TreeNode("Software Rasterizer OIT (Lucid-inspired)")) {
+        ImGui::Checkbox("Enable Soft Raster OIT", &m_config.soft_raster_oit_enable);
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("GPU software-rasterization OIT.\n"
+                              "Rasterizes transparent geometry entirely in compute shaders,\n"
+                              "producing a sorted visibility buffer, then shades with PBR.\n"
+                              "Takes priority over AOIT when both are enabled.");
+        }
+
+        ImGui::BeginDisabled(!m_config.soft_raster_oit_enable);
+        ImGui::Checkbox(
+            "Use Visibility Buffer",
+            &m_config.soft_raster_oit_visibility_buffer_enable
+        );
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("ON : visibility payload + late shading\n"
+                              "OFF: Lucid-style direct forward shading payload");
+        }
+
+        int max_tris = static_cast<int>(m_config.soft_raster_oit_max_triangles);
+        ImGui::SliderInt(
+            "Soft Max Triangles", &max_tris, 1 << 16, 1 << 24, "%d", ImGuiSliderFlags_Logarithmic
+        );
+        m_config.soft_raster_oit_max_triangles = static_cast<uint>(std::max(max_tris, 1));
+
+        int max_frags = static_cast<int>(m_config.soft_raster_oit_max_fragments);
+        ImGui::SliderInt(
+            "Soft Max Fragments", &max_frags, 1 << 20, 1 << 26, "%d", ImGuiSliderFlags_Logarithmic
+        );
+        m_config.soft_raster_oit_max_fragments = static_cast<uint>(std::max(max_frags, 1));
+
+        ImGui::Checkbox("Soft OIT Debug Stats", &m_config.soft_raster_oit_debug_stats);
+        int log_interval = static_cast<int>(m_config.soft_raster_oit_debug_log_interval);
+        ImGui::SliderInt("Soft Stats Log Interval", &log_interval, 1, 240);
+        m_config.soft_raster_oit_debug_log_interval = static_cast<uint>(std::max(log_interval, 1));
+        ImGui::EndDisabled();
+
+        ImGui::TreePop();
+    }
+
     // MARK: Shading
     if (ImGui::TreeNode(
             "Shading", "Shading: [%s]", s_shading_mode_name_map.at(m_config.shading_mode).c_str()

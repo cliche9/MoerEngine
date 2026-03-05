@@ -12,6 +12,7 @@ class DirectionalShadowMaskPass;
 class LightingPass;
 class TransparentBlendPass;
 class AOITPass;
+class SoftRasterOITPass;
 class SkyboxPass;
 class AoPass;
 class RtaoDenoiserPass;
@@ -80,6 +81,7 @@ private:
     UniquePtr<LightingPass>                lighting_pass;
     UniquePtr<TransparentBlendPass>        transparent_blend_pass;
     UniquePtr<AOITPass>                    aoit_pass;
+    UniquePtr<SoftRasterOITPass>           soft_raster_oit_pass;
     UniquePtr<SkyboxPass>                  skybox_pass;
     UniquePtr<AoPass>                      ao_pass;
     UniquePtr<RtaoDenoiserPass>            rtao_denoiser_pass;

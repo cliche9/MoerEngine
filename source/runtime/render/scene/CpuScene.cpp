@@ -236,6 +236,14 @@ void CpuScene::InitializeMeshes() {
                 g_primitive.index_start_idx = 0; // 默认值
             }
 
+            if (c_primitive.aabb.IsValid()) {
+                g_primitive.local_aabb_min = float4(c_primitive.aabb.min, 1.f);
+                g_primitive.local_aabb_max = float4(c_primitive.aabb.max, 1.f);
+            } else {
+                g_primitive.local_aabb_min = float4(0.f, 0.f, 0.f, 0.f);
+                g_primitive.local_aabb_max = float4(0.f, 0.f, 0.f, 0.f);
+            }
+
             uint primitive_id = static_cast<uint>(m_primitive_buf.size());
             m_primitive_buf.emplace_back(g_primitive);
             m_map_primitive_entity_to_id[entity] = primitive_id; // build index cache

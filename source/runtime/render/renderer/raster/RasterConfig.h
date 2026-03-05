@@ -118,6 +118,14 @@ struct RasterConfig {
     bool aoit_enable        = false;
     uint aoit_max_fragments = 1u << 24; // Max fragment pool size (16M entries ~256MB)
 
+    // MARK: Software Rasterizer OIT (Lucid-inspired)
+    bool soft_raster_oit_enable = false;
+    bool soft_raster_oit_visibility_buffer_enable = true;
+    uint soft_raster_oit_max_triangles = 1u << 18; // triangle setup buffer cap
+    uint soft_raster_oit_max_fragments = 1u << 23; // global fragment pool cap
+    bool soft_raster_oit_debug_stats   = false;    // log per-frame overflow counters
+    uint soft_raster_oit_debug_log_interval = 30;  // frames
+
     // MARK: Shading
     EShadingMode shading_mode = EShadingMode::DEFAULT_PBR;
 

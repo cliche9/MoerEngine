@@ -65,6 +65,10 @@ struct GPrimitive {
     uint packed_tangent_start_idx; // in element (uint)
     uint texcoord0_start_idx;      // in element (float2)
     uint index_start_idx;          // in uint（index buffer的元素是以uint为单位，而非uint3）
+
+    // Local-space primitive AABB. .w > 0 means valid and can be used for culling.
+    float4 local_aabb_min; // xyz = min
+    float4 local_aabb_max; // xyz = max
 };
 
 /**
