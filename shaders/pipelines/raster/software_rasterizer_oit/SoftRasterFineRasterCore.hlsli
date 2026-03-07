@@ -14,62 +14,11 @@
  */
 #pragma once
 
-bool ClipRowSpanByEdge(float A, float row_term, inout int x_min,
-    inout int x_max)
-{
-    const float k_eps = 1e-8;
-    const float k_bias = 1e-5;
-    if (abs(A) <= k_eps) {
-        return row_term >= -k_bias;
-    }
-
-    // A * (x + 0.5) + row_term >= 0
-    float x_center_bound = (-row_term) / A;
-    float x_bound = x_center_bound - 0.5;
-
-    if (A > 0.0) {
-        x_min = max(x_min, (int)ceil(x_bound - k_bias));
-    } else {
-        x_max = min(x_max, (int)floor(x_bound + k_bias));
-    }
-    return x_min <= x_max;
-}
-
-bool EdgePass(float w, bool inclusive)
-{
-    const float k_eps = 1e-6;
-    return inclusive ? (w >= -k_eps) : (w > k_eps);
-}
+#include "pipelines/raster/software_rasterizer_oit/utils/SoftRasterFineRasterUtils.hlsli"
 
 #if WRITE_MODE && !SOFT_RASTER_USE_VISIBILITY_BUFFER
 #include "shared/utils/Packing.h"
-
-template <typename T>
-T GetTextureDataLevel(int bindless_handle, float2 uv, T default_value,
-    T missing_value)
-{
-    if (bindless_handle >= 0) {
-        return TextureHandle(bindless_handle).SampleLevel<T>(uv, 0.0);
-    } else if (bindless_handle == -1) {
-        return default_value;
-    } else {
-        return missing_value;
-    }
-}
-
-float3 GetNormalFromNormalMapLevel(int normal_map, float2 uv, float3 normal,
-    float3 tangent)
-{
-    if (normal_map >= 0) {
-        float3 normal_in_tbn = normalize(
-            (TextureHandle(normal_map).SampleLevel<float3>(uv, 0.0) * 2.0) - 1.0);
-        float3 bitangent = cross(normal, tangent);
-        float3x3 tbn = float3x3(tangent, bitangent, normal);
-        return normalize(mul(normal_in_tbn, tbn));
-    } else {
-        return normal;
-    }
-}
+#include "pipelines/raster/software_rasterizer_oit/utils/SoftRasterMaterialSamplingUtils.hlsli"
 
 float4 ShadeForwardFragment(uint instance_id, uint triangle_id, bool is_front,
     float3 bary)

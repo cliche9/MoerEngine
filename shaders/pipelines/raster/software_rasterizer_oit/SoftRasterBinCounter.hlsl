@@ -7,7 +7,8 @@
 #include "shared/raster/software_rasterizer_oit/SoftRasterOITData.h"
 #include "shared/raster/software_rasterizer_oit/SoftRasterParam.h"
 
-#include "pipelines/raster/software_rasterizer_oit/SoftRasterOverlap.hlsli"
+#include "pipelines/raster/software_rasterizer_oit/utils/SoftRasterOverlapUtils.hlsli"
+#include "pipelines/raster/software_rasterizer_oit/utils/SoftRasterTileUtils.hlsli"
 
 [[vk::binding(0, 0)]] RWBuffer<uint4> triangle_buf;
 [[vk::binding(1, 0)]] RWBuffer<uint>  tile_count_buf;
@@ -50,4 +51,3 @@ void main(uint3 dtid : SV_DispatchThreadID) {
         }
     }
 }
-
