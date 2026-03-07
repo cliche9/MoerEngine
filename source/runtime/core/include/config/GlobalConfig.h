@@ -55,6 +55,7 @@ struct CORE_API GlobalConfig {
 
         struct Scene {
             std::string scene_path;
+            std::string gsplat_scene_path;
             bool        enable_cache;
             int         material_info_log_lines; // -1 to log all
             bool        force_alpha_blend_materials;

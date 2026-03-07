@@ -50,6 +50,11 @@ public:
         const std::filesystem::path& file_path,
         const SceneImportOptions&    import_options = SceneImportOptions{}
     );
+    void LoadSceneFromFileAsync(
+        const std::filesystem::path& scene_path,
+        const std::filesystem::path& gsplat_scene_path,
+        const SceneImportOptions&    import_options
+    );
 
     /**
      * 每帧调用，更新CpuScene和GpuScene数据

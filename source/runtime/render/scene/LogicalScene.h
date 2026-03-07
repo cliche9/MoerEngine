@@ -2,6 +2,7 @@
 
 #include "LogicalComponents.h"
 #include "RenderAPI.h"
+#include <entt/entt.hpp>
 #include "entt/entity/fwd.hpp"
 #include <entt/fwd.hpp>
 
@@ -95,6 +96,9 @@ public:
      * 获取主点光源的位置
      */
     float3 GetPointLightPosition(entt::entity entity) const;
+
+private:
+    entt::registry m_registry;
 };
 
 } // namespace Moer::ecs

@@ -50,6 +50,7 @@ void EditorUI::InitFromConfigManager() {
 
     // scene path
     m_config->scene_path           = config.engine.scene.scene_path;
+    m_config->gsplat_scene_path    = config.engine.scene.gsplat_scene_path;
     m_config->scene_import_options = SceneImportOptions{
         .force_alpha_blend_materials = config.engine.scene.force_alpha_blend_materials,
         .forced_alpha                = config.engine.scene.forced_alpha,
@@ -251,12 +252,10 @@ void EditorUI::ShowConfig() {
     // 避免场景加载一半，切换场景或渲染器，导致崩溃
     Scene* scene = SceneGlobalEntry::Get().GetScene();
 
-    bool is_scene_found_but_not_ready = false;
-    if (scene) {
-        is_scene_found_but_not_ready = !scene->IsReady() && scene->IsStartLoading();
-    } else {
-        LOG_WARNING("Please bind a scene by `SceneGlobalEntry::Get().BindScene(scene)`");
-    }
+    auto is_scene_loading = [](Scene* scene) {
+        return scene != nullptr && !scene->IsReady() && scene->IsStartLoading();
+    };
+    bool is_scene_found_but_not_ready = is_scene_loading(scene);
     ImGui::BeginDisabled(is_scene_found_but_not_ready);
 
     // Render Method
@@ -283,11 +282,13 @@ void EditorUI::ShowConfig() {
         }
     }
 
-    { // Scene Path
-        size_t      last_slash = m_config->scene_path.find_last_of("/\\");
-        std::string scene_name = (last_slash == std::string::npos) ?
-                                     m_config->scene_path :
-                                     m_config->scene_path.substr(last_slash + 1);
+    const auto get_scene_name = [](const std::string& scene_path) {
+        size_t last_slash = scene_path.find_last_of("/\\");
+        return (last_slash == std::string::npos) ? scene_path : scene_path.substr(last_slash + 1);
+    };
+
+    { // Mesh Scene Path
+        std::string scene_name = get_scene_name(m_config->scene_path);
         if (ImGui::Button("Open Scene")) {
             NFD::UniquePath        selected_path = nullptr;
             Array<nfdfilteritem_t> filters       = {
@@ -311,10 +312,43 @@ void EditorUI::ShowConfig() {
             }
         }
         ImGui::SameLine();
+        if (ImGui::Button("Clear Scene")) {
+            m_b_need_reload      = true;
+            m_config->scene_path = "";
+        }
+        ImGui::SameLine();
         ImGui::Text("Current: [%s]", scene_name.c_str());
     }
 
-    { // Scene Import Options
+    { // Gsplat Scene Path
+        std::string scene_name = get_scene_name(m_config->gsplat_scene_path);
+        if (ImGui::Button("Open Gsplat Scene")) {
+            NFD::UniquePath        selected_path = nullptr;
+            Array<nfdfilteritem_t> filters       = {
+                {"3DGS Point Cloud", "ply"},
+            };
+            nfdresult_t result = NFD::OpenDialog(selected_path, filters.data(), filters.size());
+            if (result == NFD_OKAY) {
+                LOG_INFO("User selected gsplat file: {}", selected_path.get());
+
+                m_b_need_reload             = true;
+                m_config->gsplat_scene_path = selected_path.get();
+            } else if (result == NFD_CANCEL) {
+                LOG_INFO("User pressed cancel.");
+            } else {
+                LOG_ERROR("NFD Error: {}", NFD_GetError());
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Gsplat Scene")) {
+            m_b_need_reload             = true;
+            m_config->gsplat_scene_path = "";
+        }
+        ImGui::SameLine();
+        ImGui::Text("Current: [%s]", scene_name.c_str());
+    }
+
+    { // Mesh Scene Import Options
         bool  force_alpha_blend = m_config->scene_import_options.force_alpha_blend_materials;
         float forced_alpha      = m_config->scene_import_options.forced_alpha;
 

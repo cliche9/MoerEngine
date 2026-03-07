@@ -15,16 +15,40 @@ void Scene::LoadSceneFromFileAsync(
     const std::filesystem::path& file_path,
     const SceneImportOptions&    import_options
 ) {
-    LambdaTask::Dispatch([this, file_path, import_options]() {
+    LoadSceneFromFileAsync(file_path, std::filesystem::path{}, import_options);
+}
+
+void Scene::LoadSceneFromFileAsync(
+    const std::filesystem::path& scene_path,
+    const std::filesystem::path& gsplat_scene_path,
+    const SceneImportOptions&    import_options
+) {
+    LambdaTask::Dispatch([this, scene_path, gsplat_scene_path, import_options]() {
         // start
         this->m_scene_load_info.StartLoading();
 
         // 1. logical scene
         this->m_logical_scene = MakeUnique<ecs::LogicalScene>();
-        bool result           = LoaderInterface::LoadSceneFromFile(*this->m_logical_scene, file_path, import_options);
+        bool has_loaded_any_scene = false;
+
+        if (!scene_path.empty()) {
+            if (LoaderInterface::LoadSceneFromFile(*this->m_logical_scene, scene_path, import_options)) {
+                has_loaded_any_scene = true;
+            } else {
+                LOG_WARNING("Failed to load mesh scene: {}", scene_path.string());
+            }
+        }
+
+        if (!gsplat_scene_path.empty()) {
+            if (LoaderInterface::LoadSceneFromFile(*this->m_logical_scene, gsplat_scene_path)) {
+                has_loaded_any_scene = true;
+            } else {
+                LOG_WARNING("Failed to load gsplat scene: {}", gsplat_scene_path.string());
+            }
+        }
 
         // failed in LogicalScene loading
-        if (!result) {
+        if (!has_loaded_any_scene) {
             this->m_scene_load_info.Reset();
             return;
         }

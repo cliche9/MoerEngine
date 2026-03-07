@@ -40,6 +40,8 @@ GlobalConfig GlobalConfig::LoadConfigFromTomlFile(const std::string_view& toml_p
 
     c.engine.scene.scene_path =
         config.at_path("engine.scene.scene_path").value_or("./asset/scenes/sponza/Sponza.gltf");
+    c.engine.scene.gsplat_scene_path = config.at_path("engine.scene.gsplat_scene_path")
+                                           .value_or("./asset/gsplat/kitchen.ply"); // 支持ply格式的点云场景
     c.engine.scene.enable_cache = config.at_path("engine.scene.enable_cache").value_or(true); // 默认启用cache
 
     c.engine.scene.material_info_log_lines =

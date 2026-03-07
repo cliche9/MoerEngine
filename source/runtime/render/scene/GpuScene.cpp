@@ -126,29 +126,44 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
      * 此处按照 Res 中顺序进行创建
      */
 
-    m_res.light_buf.buf = device.CreateBuffer<byte>(
+    auto create_byte_buffer = [&](BufferWithHandle& out,
+                                  std::string_view  name,
+                                  size_t            byte_size,
+                                  EBufferUsageFlags usage) {
+        if (byte_size == 0) {
+            return;
+        }
+
+        out.buf = device.CreateBuffer<byte>(name, static_cast<uint>(byte_size), usage);
+    };
+
+    create_byte_buffer(
+        m_res.light_buf,
         "GpuScene::LightBuffer",
         m_cpu_scene.m_light_buf.size() * sizeof(GLight),
         EBufferUsageFlags::UNORDERED_ACCESS
     );
 
-    m_res.material_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.material_buf,
         "GpuScene::MaterialBuffer",
         m_cpu_scene.m_material_buf.size() * sizeof(GMaterial),
         EBufferUsageFlags::UNORDERED_ACCESS
     );
 
     // 这里不设置为byte，是为了GeometryPass中可以直接获取 命令的数量(cpu count)、DrawIndexedCmdData的stride
-    m_res.draw_cmd_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
-        "GpuScene::DrawCmdBuffer",
-        m_cpu_scene.m_draw_cmd_buf.size(),
-        EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
-    );
+    if (!m_cpu_scene.m_draw_cmd_buf.empty()) {
+        m_res.draw_cmd_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
+            "GpuScene::DrawCmdBuffer",
+            static_cast<uint>(m_cpu_scene.m_draw_cmd_buf.size()),
+            EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
+        );
+    }
 
     if (!m_cpu_scene.m_draw_cmd_opaque_buf.empty()) {
         m_res.draw_cmd_opaque_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
             "GpuScene::DrawCmdOpaqueBuffer",
-            m_cpu_scene.m_draw_cmd_opaque_buf.size(),
+            static_cast<uint>(m_cpu_scene.m_draw_cmd_opaque_buf.size()),
             EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
         );
     }
@@ -156,51 +171,65 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
     if (!m_cpu_scene.m_draw_cmd_alpha_blend_buf.empty()) {
         m_res.draw_cmd_alpha_blend_buf.buf = device.CreateBuffer<Render::DrawIndexedCmdData>(
             "GpuScene::DrawCmdAlphaBlendBuffer",
-            m_cpu_scene.m_draw_cmd_alpha_blend_buf.size(),
+            static_cast<uint>(m_cpu_scene.m_draw_cmd_alpha_blend_buf.size()),
             EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDIRECT_BUFFER
         );
     }
 
-    m_res.primitive_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.primitive_buf,
         "GpuScene::PrimitiveBuffer",
         m_cpu_scene.m_primitive_buf.size() * sizeof(GPrimitive),
         EBufferUsageFlags::UNORDERED_ACCESS
     );
 
-    m_res.instance_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.instance_buf,
         "GpuScene::InstanceBuffer",
         m_cpu_scene.m_instance_buf.size() * sizeof(GInstance),
         EBufferUsageFlags::UNORDERED_ACCESS
     );
 
-    m_res.position_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.position_buf,
         "GpuScene::PositionMegaBuffer",
         m_cpu_scene.mega_buf().position.size() * sizeof(float3),
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::VERTEX_BUFFER
     );
 
-    m_res.packed_normal_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.packed_normal_buf,
         "GpuScene::NormalMegaBuffer",
         m_cpu_scene.mega_buf().packed_normal.size() * sizeof(uint32),
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::VERTEX_BUFFER
     );
 
-    m_res.packed_tangent_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.packed_tangent_buf,
         "GpuScene::TangentMegaBuffer",
         m_cpu_scene.mega_buf().packed_tangent.size() * sizeof(uint32),
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::VERTEX_BUFFER
     );
 
-    m_res.texcoord0_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.texcoord0_buf,
         "GpuScene::Texcoord0MegaBuffer",
         m_cpu_scene.mega_buf().texcoord0.size() * sizeof(float2),
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::VERTEX_BUFFER
     );
 
-    m_res.index_buf.buf = device.CreateBuffer<byte>(
+    create_byte_buffer(
+        m_res.index_buf,
         "GpuScene::IndexMegaBuffer",
         m_cpu_scene.mega_buf().index.size() * sizeof(uint32),
         EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::INDEX_BUFFER
+    );
+
+    create_byte_buffer(
+        m_res.gaussian_splat_vertex_buf,
+        "GpuScene::GaussianSplatVertexBuffer",
+        m_cpu_scene.m_gaussian_splat_vertex_buf.size() * sizeof(GGaussianSplatVertex),
+        EBufferUsageFlags::UNORDERED_ACCESS | EBufferUsageFlags::VERTEX_BUFFER
     );
 
     /**
@@ -209,28 +238,39 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
      * 此处按照 Res 中顺序进行上传
      */
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.m_light_buf.data(), m_cpu_scene.m_light_buf.size() * sizeof(GLight)
-        ),
-        m_res.light_buf.buf->GetView(),
+    auto copy_to_buffer = [&](BufferRef         buffer,
+                              const void*       data,
+                              size_t            byte_size,
+                              std::string_view  copy_name) {
+        if (!buffer || byte_size == 0) {
+            return;
+        }
+
+        cmd_list.CopyFrom(
+            std::span<byte>(reinterpret_cast<byte*>(const_cast<void*>(data)), byte_size),
+            buffer->GetView(),
+            copy_name
+        );
+    };
+
+    copy_to_buffer(
+        m_res.light_buf.buf,
+        m_cpu_scene.m_light_buf.data(),
+        m_cpu_scene.m_light_buf.size() * sizeof(GLight),
         "CopyFrom GpuScene::LightBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.m_material_buf.data(), m_cpu_scene.m_material_buf.size() * sizeof(GMaterial)
-        ),
-        m_res.material_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.material_buf.buf,
+        m_cpu_scene.m_material_buf.data(),
+        m_cpu_scene.m_material_buf.size() * sizeof(GMaterial),
         "CopyFrom GpuScene::MaterialBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.m_draw_cmd_buf.data(),
-            m_cpu_scene.m_draw_cmd_buf.size() * sizeof(Render::DrawIndexedCmdData)
-        ),
-        m_res.draw_cmd_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.draw_cmd_buf.buf,
+        m_cpu_scene.m_draw_cmd_buf.data(),
+        m_cpu_scene.m_draw_cmd_buf.size() * sizeof(Render::DrawIndexedCmdData),
         "CopyFrom GpuScene::DrawCmdBuffer"
     );
 
@@ -256,64 +296,60 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
         );
     }
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.m_primitive_buf.data(), m_cpu_scene.m_primitive_buf.size() * sizeof(GPrimitive)
-        ),
-        m_res.primitive_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.primitive_buf.buf,
+        m_cpu_scene.m_primitive_buf.data(),
+        m_cpu_scene.m_primitive_buf.size() * sizeof(GPrimitive),
         "CopyFrom GpuScene::PrimitiveBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.m_instance_buf.data(), m_cpu_scene.m_instance_buf.size() * sizeof(GInstance)
-        ),
-        m_res.instance_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.instance_buf.buf,
+        m_cpu_scene.m_instance_buf.data(),
+        m_cpu_scene.m_instance_buf.size() * sizeof(GInstance),
         "CopyFrom GpuScene::InstanceBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.mega_buf().position.data(),
-            m_cpu_scene.mega_buf().position.size() * sizeof(float3)
-        ),
-        m_res.position_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.position_buf.buf,
+        m_cpu_scene.mega_buf().position.data(),
+        m_cpu_scene.mega_buf().position.size() * sizeof(float3),
         "CopyFrom GpuScene::PositionMegaBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.mega_buf().packed_normal.data(),
-            m_cpu_scene.mega_buf().packed_normal.size() * sizeof(uint32)
-        ),
-        m_res.packed_normal_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.packed_normal_buf.buf,
+        m_cpu_scene.mega_buf().packed_normal.data(),
+        m_cpu_scene.mega_buf().packed_normal.size() * sizeof(uint32),
         "CopyFrom GpuScene::NormalMegaBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.mega_buf().packed_tangent.data(),
-            m_cpu_scene.mega_buf().packed_tangent.size() * sizeof(uint32)
-        ),
-        m_res.packed_tangent_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.packed_tangent_buf.buf,
+        m_cpu_scene.mega_buf().packed_tangent.data(),
+        m_cpu_scene.mega_buf().packed_tangent.size() * sizeof(uint32),
         "CopyFrom GpuScene::TangentMegaBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.mega_buf().texcoord0.data(),
-            m_cpu_scene.mega_buf().texcoord0.size() * sizeof(float2)
-        ),
-        m_res.texcoord0_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.texcoord0_buf.buf,
+        m_cpu_scene.mega_buf().texcoord0.data(),
+        m_cpu_scene.mega_buf().texcoord0.size() * sizeof(float2),
         "CopyFrom GpuScene::Texcoord0MegaBuffer"
     );
 
-    cmd_list.CopyFrom(
-        std::span<byte>(
-            (byte*)m_cpu_scene.mega_buf().index.data(), m_cpu_scene.mega_buf().index.size() * sizeof(uint32)
-        ),
-        m_res.index_buf.buf->GetView(),
+    copy_to_buffer(
+        m_res.index_buf.buf,
+        m_cpu_scene.mega_buf().index.data(),
+        m_cpu_scene.mega_buf().index.size() * sizeof(uint32),
         "CopyFrom GpuScene::IndexMegaBuffer"
+    );
+
+    copy_to_buffer(
+        m_res.gaussian_splat_vertex_buf.buf,
+        m_cpu_scene.m_gaussian_splat_vertex_buf.data(),
+        m_cpu_scene.m_gaussian_splat_vertex_buf.size() * sizeof(GGaussianSplatVertex),
+        "CopyFrom GpuScene::GaussianSplatVertexBuffer"
     );
 
     /**
@@ -336,6 +372,7 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
         &m_res.packed_tangent_buf,
         &m_res.texcoord0_buf,
         &m_res.index_buf,
+        &m_res.gaussian_splat_vertex_buf,
     };
 
     if (m_res.draw_cmd_opaque_buf.buf) {
@@ -347,9 +384,18 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
 
     for (auto& buf_with_hdl_ptr : buffers) {
         BufferWithHandle& buf_with_hdl = *buf_with_hdl_ptr;
+        if (!buf_with_hdl.buf) {
+            continue;
+        }
 
         buf_with_hdl.hdl = bdls->AllocateBuffer(buf_with_hdl.buf->GetView());
     }
+
+    m_res.gaussian_splat_handles.vertex_buf_hdl   = m_res.gaussian_splat_vertex_buf.hdl;
+    m_res.gaussian_splat_handles.enabled =
+        static_cast<uint>(!m_cpu_scene.m_gaussian_splat_vertex_buf.empty());
+    m_res.gaussian_splat_handles.vertex_count =
+        static_cast<uint>(m_cpu_scene.m_gaussian_splat_vertex_buf.size());
 
     // NOTE: UpdateBindlessArray 需要在 Graphics/Compute Queue 中执行，不能在 Copy Queue 中执行
     // 这里只分配了 handle，实际的 bindless array 更新应该在后续的 Graphics Queue 命令中完成
@@ -386,6 +432,9 @@ GpuScene::GpuScene(CpuScene& cpu_scene, BindlessArrayRef bindless_array) :
 
     for (const auto& buf_with_hdl_ptr : buffers) {
         const BufferWithHandle& buf_with_hdl = *buf_with_hdl_ptr;
+        if (!buf_with_hdl.buf) {
+            continue;
+        }
 
         export_buf.emplace_back(ExportBuffer{buf_with_hdl.buf->GetView(), EBufferState::UNORDERED_ACCESS});
         import_buf.emplace_back(ImportBuffer{buf_with_hdl.buf->GetView(), EBufferState::UNORDERED_ACCESS});

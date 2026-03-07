@@ -8,6 +8,7 @@
  * 因此，我们应该在SharedHeaders中定义这些struct
  */
 #include "shaderheaders/shared/scene/SharedSceneStruct.h"
+#include "shaderheaders/shared/scene/SharedGaussianSplatStruct.h"
 
 #include "LogicalScene.h"
 #include "RenderAPI.h"
@@ -125,6 +126,12 @@ private:
     // Material必须在Mesh之前初始化，因为Mesh需要Material ID
     void InitializeMaterials();
     void UpdateMaterials();
+
+    // 3D Gaussian Splatting
+    Array<GGaussianSplatVertex> m_gaussian_splat_vertex_buf;
+
+    void InitializeGaussianSplatting();
+    void UpdateGaussianSplatting();
 
     // mesh
     Array<Render::DrawIndexedCmdData> m_draw_cmd_buf;             // 1:1 GPrimitive (all draw commands)

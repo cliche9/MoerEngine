@@ -16,12 +16,14 @@ CpuScene::CpuScene(ecs::LogicalScene& m_logical_scene) : m_logical_scene(m_logic
      */
     InitializeLights();
     InitializeMaterials();
+    InitializeGaussianSplatting();
     InitializeMeshes();
 }
 
 void CpuScene::Update() {
     UpdateLights();
     UpdateMaterials();
+    UpdateGaussianSplatting();
     UpdateMeshes();
 }
 
@@ -170,6 +172,32 @@ void CpuScene::InitializeMaterials() {
 }
 
 void CpuScene::UpdateMaterials() {
+    // TODO
+}
+
+void CpuScene::InitializeGaussianSplatting() {
+    auto& r = m_logical_scene.r();
+
+    m_gaussian_splat_vertex_buf.clear();
+
+    auto gaussian_view = r.view<const ecs::CGaussianSplatting>();
+    size_t total_vertex_count = 0;
+    gaussian_view.each([&](const auto, const ecs::CGaussianSplatting& c_gaussian_splatting) {
+        total_vertex_count += c_gaussian_splatting.vertices.size();
+    });
+
+    m_gaussian_splat_vertex_buf.reserve(total_vertex_count);
+
+    gaussian_view.each([&](const auto, const ecs::CGaussianSplatting& c_gaussian_splatting) {
+        m_gaussian_splat_vertex_buf.insert(
+            m_gaussian_splat_vertex_buf.end(),
+            c_gaussian_splatting.vertices.begin(),
+            c_gaussian_splatting.vertices.end()
+        );
+    });
+}
+
+void CpuScene::UpdateGaussianSplatting() {
     // TODO
 }
 

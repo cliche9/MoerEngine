@@ -34,7 +34,11 @@ Renderer::Renderer(uint2& _resolution, const SharedPtr<EditorConfig> _config, co
     {
         bindless_array = scene.bindless_array();
 
-        scene.LoadSceneFromFileAsync(_config->scene_path, _config->scene_import_options);
+        if (!_config->scene_path.empty() || !_config->gsplat_scene_path.empty()) {
+            scene.LoadSceneFromFileAsync(
+                _config->scene_path, _config->gsplat_scene_path, _config->scene_import_options
+            );
+        }
 
         SceneGlobalEntry::Get().BindScene(&scene);
     }
@@ -68,11 +72,17 @@ void Renderer::ReleaseResources() {
     swapchain->Sync();
     device.WaitIdle();
 
-    cmd_list.UpdateBindlessArray(bindless_array);
+    if (bindless_array) {
+        cmd_list.UpdateBindlessArray(bindless_array);
+    }
     gfx_queue.Execute(cmd_list.Submit().DeleteResources());
     gfx_queue.Sync();
 
     scene.Reset();
+
+    bindless_array = nullptr;
+
+    SceneGlobalEntry::Get().BindScene(nullptr);
 }
 
 Renderer::EWindowState Renderer::TickWindowContext(const EngineHooks& hooks) {
@@ -103,14 +113,24 @@ Renderer::EWindowState Renderer::TickWindowContext(const EngineHooks& hooks) {
 }
 
 void Renderer::LogSceneLoadStatus(const EditorConfig& config) const {
-    if (scene.IsStartLoading() == false) {
-        // 没有找到场景，每隔一段时间在命令行打印提示信息，避免用户不知道发生了什么
-        static LoopedTimer timer(2.0);
-        if (timer.Tick()) { // 每隔1s触发一次
+    static LoopedTimer empty_timer(2.0);
+    static LoopedTimer scene_timer(2.0);
+
+    if (config.scene_path.empty() && config.gsplat_scene_path.empty()) {
+        if (empty_timer.Tick()) {
             LOG_WARNING(
-                "Don't find scene or scene format isn't supported. Please load a valid scene. Latest "
-                "attempted scene: {}",
-                config.scene_path
+                "Don't find mesh scene or gsplat scene. Please load a valid scene from the editor UI."
+            );
+        }
+        return;
+    }
+
+    if (scene.IsStartLoading() == false) {
+        if (scene_timer.Tick()) {
+            LOG_WARNING(
+                "Failed to load requested scene inputs. Latest mesh scene: '{}', latest gsplat scene: '{}'",
+                config.scene_path,
+                config.gsplat_scene_path
             );
         }
     }

@@ -52,6 +52,10 @@ public:
 
         BufferWithHandle index_buf;
 
+        // 3D Gaussian splatting
+        BufferWithHandle gaussian_splat_vertex_buf;
+        GGaussianSplatBindlessHandles gaussian_splat_handles;
+
         // raytracing scene
         RaytracingSceneRef rt_scene;
     };

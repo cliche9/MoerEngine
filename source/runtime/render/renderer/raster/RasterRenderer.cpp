@@ -60,14 +60,14 @@ RasterRenderer::RasterRenderer(
         _config->raster_config.soft_raster_oit_max_triangles,
         _config->raster_config.soft_raster_oit_max_fragments
     );
-    skybox_pass          = MakeUnique<SkyboxPass>(raster_context);
-    ao_pass              = MakeUnique<AoPass>(raster_context);
-    rtao_denoiser_pass   = MakeUnique<RtaoDenoiserPass>(raster_context);
-    bfd_pass             = MakeUnique<BilateralFilterDenoiserPass>(raster_context);
-    ssr_pass             = MakeUnique<SsrPass>(raster_context);
-    aa_pass              = MakeUnique<AaPass>(raster_context);
-    bloom_pass           = MakeUnique<BloomPass>(raster_context);
-    tonemapping_pass     = MakeUnique<TonemappingPass>(raster_context);
+    skybox_pass        = MakeUnique<SkyboxPass>(raster_context);
+    ao_pass            = MakeUnique<AoPass>(raster_context);
+    rtao_denoiser_pass = MakeUnique<RtaoDenoiserPass>(raster_context);
+    bfd_pass           = MakeUnique<BilateralFilterDenoiserPass>(raster_context);
+    ssr_pass           = MakeUnique<SsrPass>(raster_context);
+    aa_pass            = MakeUnique<AaPass>(raster_context);
+    bloom_pass         = MakeUnique<BloomPass>(raster_context);
+    tonemapping_pass   = MakeUnique<TonemappingPass>(raster_context);
 
 #if WITH_CUDA
     // 固定CudaPass位于AoPass之后（需要保证AoPass必定往 ao_output 中写入数据

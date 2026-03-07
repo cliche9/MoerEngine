@@ -580,12 +580,16 @@ void ShadowDepthPass::RenderShadow(
     TextureView         depth_view,
     std::string_view    pass_name
 ) {
+    const auto& gpu_scene_res = context.scene.gpu_scene_res();
+    if (!gpu_scene_res.draw_cmd_buf.buf || gpu_scene_res.draw_cmd_buf.buf->GetNumElement() == 0) {
+        return;
+    }
+
     // 1. Params
     GeometryPassBindlessParam param;
     param.world2clip = Transpose(view_proj);
 
     // Get bindless handles from GpuScene
-    const auto& gpu_scene_res    = context.scene.gpu_scene_res();
     param.instance_buf_hdl       = gpu_scene_res.instance_buf.hdl;
     param.primitive_buf_hdl      = gpu_scene_res.primitive_buf.hdl;
     param.position_buf_hdl       = gpu_scene_res.position_buf.hdl;

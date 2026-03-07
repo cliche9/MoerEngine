@@ -2,6 +2,7 @@
 
 #include "log/LogSystem.h"
 #include "scene/loader/assimp/Parser.h"
+#include "scene/loader/gaussian/Parser.h"
 #include "taskgraph/TaskGraph.h"
 #include <cassert>
 #include <filesystem>
@@ -16,6 +17,7 @@ static Moer::Map<std::string, LoadFunction> scene_load_function_maps = {
     {"fbx", assimp::Parser::LoadSceneFromFile},
     {"obj", assimp::Parser::LoadSceneFromFile},
     {"dae", assimp::Parser::LoadSceneFromFile},
+    {"ply", gaussian::Parser::LoadSceneFromFile},
 };
 
 bool LoaderInterface::LoadSceneFromFile(

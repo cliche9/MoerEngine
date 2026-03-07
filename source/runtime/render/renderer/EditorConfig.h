@@ -17,6 +17,7 @@ constexpr std::string_view k_render_method_names[] = {"Raster", "Raytracing"};
 struct EditorConfig {
     ERenderMethod selected_render_method = ERenderMethod::Raster;
     std::string   scene_path             = "";
+    std::string   gsplat_scene_path      = "";
 
     float camera_speed_log10     = log10f(25.f);
     float camera_fovy            = 60.f;

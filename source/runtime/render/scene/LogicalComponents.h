@@ -6,6 +6,7 @@
 #include "misc/STL.h"
 #include "misc/Traits.h"
 #include "scene/camera/Camera.h"
+#include "shaderheaders/shared/scene/SharedGaussianSplatStruct.h"
 #include "shaderheaders/shared/raster/SharedEnum.h"
 
 #include <entt/entity/entity.hpp>
@@ -147,6 +148,14 @@ struct CMesh {
 
 struct CRenderable {
     entt::entity mesh_entt = entt::null;
+};
+
+struct CGaussianSplatting {
+    Array<GGaussianSplatVertex> vertices;
+};
+
+struct CGaussianSplattingRenderable {
+    entt::entity gaussian_splatting_entt = entt::null;
 };
 
 // MARK: Material & Texture
