@@ -128,62 +128,54 @@ CmdSubmit CommandList::Submit() {
 }
 
 void CommandList::CopyFrom(BufferView _src, BufferView _dst, std::string_view _name) {
-    commands.push_back(
-        MakeUnique<CopyBufferCmd>(
-            reinterpret_cast<uint64>(_src.GetBuffer()),
-            reinterpret_cast<uint64>(_dst.GetBuffer()),
-            _src.byte_offset,
-            _dst.byte_offset,
-            _src.GetByteSize(),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyBufferCmd>(
+        reinterpret_cast<uint64>(_src.GetBuffer()),
+        reinterpret_cast<uint64>(_dst.GetBuffer()),
+        _src.byte_offset,
+        _dst.byte_offset,
+        _src.GetByteSize(),
+        _name
+    ));
 }
 void CommandList::CopyFrom(TextureView _src, TextureView _dst, std::string_view _name) {
-    commands.push_back(
-        MakeUnique<CopyTextureCmd>(
-            _src.texture->GetFormat(),
-            reinterpret_cast<uint64>(_src.texture), //reinterpret_cast<uint64
-            reinterpret_cast<uint64>(_dst.texture),
-            _src.mip_level,
-            _dst.mip_level,
-            _src.offset,
-            _dst.offset,
-            _src.extent,
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyTextureCmd>(
+        _src.texture->GetFormat(),
+        reinterpret_cast<uint64>(_src.texture), //reinterpret_cast<uint64
+        reinterpret_cast<uint64>(_dst.texture),
+        _src.mip_level,
+        _dst.mip_level,
+        _src.offset,
+        _dst.offset,
+        _src.extent,
+        _name
+    ));
 }
 void CommandList::CopyFrom(TextureView _src, BufferView _dst, std::string_view _name) {
 
-    commands.push_back(
-        MakeUnique<CopyTextureToBufferCmd>(
-            _src.texture->GetFormat(),
-            reinterpret_cast<uint64>(_src.texture),
-            reinterpret_cast<uint64>(_dst.GetBuffer()),
-            _src.offset,
-            _dst.byte_offset,
-            _src.extent,
-            _src.mip_level,
-            _src.array_layer,
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyTextureToBufferCmd>(
+        _src.texture->GetFormat(),
+        reinterpret_cast<uint64>(_src.texture),
+        reinterpret_cast<uint64>(_dst.GetBuffer()),
+        _src.offset,
+        _dst.byte_offset,
+        _src.extent,
+        _src.mip_level,
+        _src.array_layer,
+        _name
+    ));
 }
 void CommandList::CopyFrom(BufferView _src, TextureView _dst, std::string_view _name) {
-    commands.push_back(
-        MakeUnique<CopyBufferToTextureCmd>(
-            _dst.texture->GetFormat(),
-            reinterpret_cast<uint64>(_src.GetBuffer()),
-            reinterpret_cast<uint64>(_dst.texture),
-            _src.byte_offset,
-            _dst.offset,
-            _dst.extent,
-            _dst.mip_level,
-            _dst.array_layer,
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyBufferToTextureCmd>(
+        _dst.texture->GetFormat(),
+        reinterpret_cast<uint64>(_src.GetBuffer()),
+        reinterpret_cast<uint64>(_dst.texture),
+        _src.byte_offset,
+        _dst.offset,
+        _dst.extent,
+        _dst.mip_level,
+        _dst.array_layer,
+        _name
+    ));
 }
 
 // Be careful with the Lifetime of the data!
@@ -193,18 +185,16 @@ void CommandList::CopyFrom(std::span<byte> _data, TextureView _texture, std::str
         std::max(uint(_texture.extent.y) >> _texture.mip_level, 1u),
         std::max(uint(_texture.extent.z) >> _texture.mip_level, 1u)
     );
-    commands.push_back(
-        MakeUnique<UploadTextureCmd>(
-            _texture.texture->GetFormat(),
-            reinterpret_cast<uint64>(_texture.texture),
-            _texture.mip_level,
-            _texture.array_layer,
-            _texture.offset,
-            extent,
-            _data.data(),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<UploadTextureCmd>(
+        _texture.texture->GetFormat(),
+        reinterpret_cast<uint64>(_texture.texture),
+        _texture.mip_level,
+        _texture.array_layer,
+        _texture.offset,
+        extent,
+        _data.data(),
+        _name
+    ));
 }
 
 // Be careful with the Lifetime of the data!
@@ -212,27 +202,23 @@ void CommandList::CopyFrom(std::span<byte> _data, BufferView _buffer, std::strin
     if (_data.size() == 0) {
         return;
     }
-    commands.push_back(
-        MakeUnique<UploadBufferCmd>(
-            reinterpret_cast<uint64>(_buffer.GetBuffer()),
-            _buffer.GetByteOffset(),
-            _data.size_bytes(),
-            _data.data(),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<UploadBufferCmd>(
+        reinterpret_cast<uint64>(_buffer.GetBuffer()),
+        _buffer.GetByteOffset(),
+        _data.size_bytes(),
+        _data.data(),
+        _name
+    ));
 }
 
 void CommandList::CopyFrom(BufferView _src, std::span<byte> _data, std::string_view _name) {
-    commands.push_back(
-        MakeUnique<CopyBackBufferCmd>(
-            reinterpret_cast<uint64>(_src.GetBuffer()),
-            _src.GetByteOffset(),
-            _src.GetByteSize(),
-            _data.data(),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyBackBufferCmd>(
+        reinterpret_cast<uint64>(_src.GetBuffer()),
+        _src.GetByteOffset(),
+        _src.GetByteSize(),
+        _data.data(),
+        _name
+    ));
 }
 
 void CommandList::CopyFrom(TextureView _src, std::span<byte> _data, std::string_view _name) {
@@ -244,49 +230,43 @@ void CommandList::CopyFrom(TextureView _src, std::span<byte> _data, std::string_
     b_valid_size &= mip_size <= _data.size();
 
     assert(b_valid_size && "Fatal: Copy back data size is less than texture mip size");
-    commands.push_back(
-        MakeUnique<CopyBackTextureCmd>(
-            reinterpret_cast<uint64>(_src.texture),
-            _src.mip_level,
-            _src.offset,
-            _src.extent,
-            std::span<byte>(_data.data(), mip_size),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<CopyBackTextureCmd>(
+        reinterpret_cast<uint64>(_src.texture),
+        _src.mip_level,
+        _src.offset,
+        _src.extent,
+        std::span<byte>(_data.data(), mip_size),
+        _name
+    ));
 }
 
 void CommandList::CopyFrom(Array<byte>&& _data, BufferView _dst, std::string_view _name) {
     if (_data.size() == 0) {
         return;
     }
-    commands.push_back(
-        MakeUnique<UploadBufferCmd>(
-            reinterpret_cast<uint64>(_dst.GetBuffer()),
-            _dst.GetByteOffset(),
-            _data.size(),
-            std::move(_data),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<UploadBufferCmd>(
+        reinterpret_cast<uint64>(_dst.GetBuffer()),
+        _dst.GetByteOffset(),
+        _data.size(),
+        std::move(_data),
+        _name
+    ));
 }
 
 void CommandList::CopyFrom(Array<byte>&& _data, TextureView _dst, std::string_view _name) {
     if (_data.size() == 0) {
         return;
     }
-    commands.push_back(
-        MakeUnique<UploadTextureCmd>(
-            _dst.texture->GetFormat(),
-            reinterpret_cast<uint64>(_dst.texture),
-            _dst.mip_level,
-            _dst.array_layer,
-            _dst.offset,
-            _dst.extent,
-            std::move(_data),
-            _name
-        )
-    );
+    commands.push_back(MakeUnique<UploadTextureCmd>(
+        _dst.texture->GetFormat(),
+        reinterpret_cast<uint64>(_dst.texture),
+        _dst.mip_level,
+        _dst.array_layer,
+        _dst.offset,
+        _dst.extent,
+        std::move(_data),
+        _name
+    ));
 }
 
 void CommandList::SetRenderCmds(
@@ -357,12 +337,12 @@ void CommandList::PushScopeWithTimeScope(std::string_view _name) {
 }
 
 void CommandList::PopScope() {
-    commands.push_back(MakeUnique<ScopeCmd>(scope_stack.front(), false, false));
+    commands.push_back(MakeUnique<ScopeCmd>(scope_stack.top(), false, false));
     scope_stack.pop();
 }
 
 void CommandList::PopScopeWithTimeScope() {
-    commands.push_back(MakeUnique<ScopeCmd>(scope_stack.front(), false, true));
+    commands.push_back(MakeUnique<ScopeCmd>(scope_stack.top(), false, true));
     scope_stack.pop();
 }
 #pragma region[ raytracing ]
@@ -405,11 +385,9 @@ void CommandList::BeginBarriers(
     EQueueType _src_queue,
     EQueueType _dst_queue
 ) {
-    commands.push_back(
-        MakeUnique<BarrierCmd>(
-            _read_tex_cnt, _write_tex_cnt, _read_buf_cnt, _write_buf_cnt, _src_queue, _dst_queue
-        )
-    );
+    commands.push_back(MakeUnique<BarrierCmd>(
+        _read_tex_cnt, _write_tex_cnt, _read_buf_cnt, _write_buf_cnt, _src_queue, _dst_queue
+    ));
     current_barriers = commands.back().get();
 }
 
@@ -467,11 +445,9 @@ void CommandList::ImportResourcesFromQueue(
     }
 
     // QueueTransferCmd cmd(_src_queue, std::move(_textures_to_import));
-    commands.emplace_back(
-        MakeUnique<QueueTransferCmd>(
-            _src_queue, std::move(_textures_to_import), std::move(_buffers_to_import)
-        )
-    );
+    commands.emplace_back(MakeUnique<QueueTransferCmd>(
+        _src_queue, std::move(_textures_to_import), std::move(_buffers_to_import)
+    ));
 }
 
 void CommandList::ExportResourcesToQueue(
@@ -504,11 +480,9 @@ void CommandList::ExportResourcesToQueue(
         }
     }
 
-    commands.emplace_back(
-        MakeUnique<QueueTransferCmd>(
-            _dst_queue, std::move(_textures_to_export), std::move(_buffers_to_export)
-        )
-    );
+    commands.emplace_back(MakeUnique<QueueTransferCmd>(
+        _dst_queue, std::move(_textures_to_export), std::move(_buffers_to_export)
+    ));
 }
 
 ArrayArgReference CommandList::RegisterArgs(ArrayArguments&& _args) {

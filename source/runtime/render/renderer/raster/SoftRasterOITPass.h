@@ -421,17 +421,19 @@ public:
         //    COLOR_ATTACHMENT / DEPTH_STENCIL states with
         //    SAMPLED_READ@COMPUTE_SHADER, producing wrong barriers.
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster OIT Copy");
+        context.cmd_list.PushScope("SoftRaster OIT");
 
         // Copy opaque lighting_output -> resolve_output.
         // This is isolated in its own reorderer layer (between the two
         // PushScope calls) so that the barrier correctly transitions
         // lighting_output from COLOR_ATTACHMENT → TRANSFER_SRC.
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Copy");
         context.cmd_list.CopyFrom(
             context.textures.lighting_output.tex->GetView(),
             m_resolve_output_tex->GetView(),
             "SoftRaster Copy Opaque To Resolve"
         );
+        context.cmd_list.PopScopeWithTimeScope();
 
         // Second PushScope: forces compute dispatches into yet another
         // layer, preventing HandleBindless from overriding the CopyFrom's
@@ -453,7 +455,7 @@ public:
         // ==================================================================
         // 1. Clear counters/buffers used by this frame
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster Clear");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Clear");
         context.cmd_list.ClearResource(m_tile_count_buf->GetView(), (uint32_t)0);
         context.cmd_list.ClearResource(m_low_bin_count_buf->GetView(), (uint32_t)0);
         context.cmd_list.ClearResource(m_high_bin_count_buf->GetView(), (uint32_t)0);
@@ -461,12 +463,12 @@ public:
         context.cmd_list.ClearResource(m_alloc_counter_buf->GetView(), (uint32_t)0);
         context.cmd_list.ClearResource(m_active_pixel_count_buf->GetView(), (uint32_t)0);
         context.cmd_list.ClearResource(m_debug_stats_buf->GetView(), (uint32_t)0);
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 2. Setup: transform + precompute triangle equations
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster Setup");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Setup");
         {
             SoftRasterSetupParam sp{};
             sp.world2clip        = Transpose(camera.GetViewProjectionMatrix());
@@ -486,7 +488,7 @@ public:
                 .Compute(m_setup_pipeline, m_triangle_buf, m_debug_stats_buf, context.bdls, sp)
                 .Dispatch(uint3(setup_groups, 1, 1), "SoftRaster Setup");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 3. BinCounter: count tile overlaps per triangle
@@ -496,18 +498,18 @@ public:
         twp.tile_count_y    = tile_cy;
         twp.total_triangles = total_triangles;
 
-        context.cmd_list.PushScope("SoftRaster BinCounter");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster BinCounter");
         {
             context.cmd_list
                 .Compute(m_bin_counter_pipeline, m_triangle_buf, m_tile_count_buf, m_debug_stats_buf, twp)
                 .Dispatch(uint3(setup_groups, 1, 1), "SoftRaster Bin Counter");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 4. BinPrefix: allocate contiguous per-tile ranges
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster BinPrefix");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster BinPrefix");
         {
             SoftRasterTileAllocParam tap{};
             tap.total_tiles      = tile_cnt;
@@ -524,12 +526,12 @@ public:
                 )
                 .Dispatch(uint3(1, 1, 1), "SoftRaster Bin Prefix");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 5. BinDispatch: write triangle IDs into tile ranges
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster BinDispatch");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster BinDispatch");
         {
             context.cmd_list
                 .Compute(
@@ -544,12 +546,12 @@ public:
                 )
                 .Dispatch(uint3(setup_groups, 1, 1), "SoftRaster Bin Dispatch");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 6. BinCategorize: split tiles into low/high density bins
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster BinCategorize");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster BinCategorize");
         {
             SoftRasterBinCategorizeParam bcp{};
             bcp.total_tiles         = tile_cnt;
@@ -568,7 +570,7 @@ public:
                 )
                 .Dispatch(uint3(categorize_groups, 1, 1), "SoftRaster Bin Categorize");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 7. Fine Raster — COUNT (Low bin)
@@ -593,7 +595,7 @@ public:
         tp.extra_ambient_color     = ui_config.shading_extra_ambient_color;
         tp.extra_ambient_intensity = ui_config.shading_extra_ambient_intensity;
 
-        context.cmd_list.PushScope("SoftRaster FineCount Low");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster FineCount Low");
         {
             context.cmd_list
                 .Compute(
@@ -610,12 +612,12 @@ public:
                 )
                 .Dispatch(uint3(tile_cnt, 1, 1), "SoftRaster Fine Count Low");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 8. Fine Raster — COUNT (High bin)
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster FineCount High");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster FineCount High");
         {
             context.cmd_list
                 .Compute(
@@ -632,12 +634,12 @@ public:
                 )
                 .Dispatch(uint3(tile_cnt, 1, 1), "SoftRaster Fine Count High");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 9. Alloc — per-pixel contiguous reservation
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster Alloc");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Alloc");
         {
             SoftRasterAllocParam ap{};
             ap.total_pixels  = total_px;
@@ -655,19 +657,19 @@ public:
                 )
                 .Dispatch(uint3(groups, 1, 1), "SoftRaster Alloc");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 10. Clear pixel_frag_count for reuse as per-pixel write counter
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster ClearCount");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster ClearCount");
         context.cmd_list.ClearResource(m_pixel_frag_count_buf->GetView(), (uint32_t)0);
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 11. Fine Raster — WRITE (Low bin)
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster FineWrite Low");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster FineWrite Low");
         {
             context.cmd_list
                 .Compute(
@@ -688,12 +690,12 @@ public:
                 )
                 .Dispatch(uint3(tile_cnt, 1, 1), "SoftRaster Fine Write Low");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 12. Fine Raster — WRITE (High bin)
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster FineWrite High");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster FineWrite High");
         {
             context.cmd_list
                 .Compute(
@@ -714,12 +716,12 @@ public:
                 )
                 .Dispatch(uint3(tile_cnt, 1, 1), "SoftRaster Fine Write High");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 13. Sort — per-pixel insertion sort + active-pixel mapping
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster Sort");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Sort");
         {
             SoftRasterSortParam sp{};
             sp.screen_width = res.x;
@@ -739,13 +741,13 @@ public:
                 )
                 .Dispatch(uint3(groups, 1, 1), "SoftRaster Sort");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         // ==================================================================
         // 14. Shading — VB: reconstruct+shade, Forward: direct blend
         //    (CopyFrom lighting_output→resolve was moved to stage 0)
         // ==================================================================
-        context.cmd_list.PushScope("SoftRaster Shade");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster Shade");
         {
             AOITResolveParam rp{};
             rp.clip2world = Transpose(camera.GetViewProjectionMatrixInv());
@@ -782,10 +784,10 @@ public:
                 )
                 .Dispatch(uint3(shading_groups, 1, 1), "SoftRaster Shading");
         }
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         if (ui_config.soft_raster_oit_debug_stats) {
-            context.cmd_list.PushScope("SoftRaster StatsReadback");
+            context.cmd_list.PushScopeWithTimeScope("SoftRaster StatsReadback");
             context.cmd_list.CopyFrom(
                 m_debug_stats_buf->GetView(),
                 std::span<byte>(
@@ -794,18 +796,18 @@ public:
                 ),
                 "SoftRaster DebugStats Readback"
             );
-            context.cmd_list.PopScope();
+            context.cmd_list.PopScopeWithTimeScope();
             m_has_debug_stats_readback = true;
         }
 
         // Keep resolve copy in a dedicated scope to force an extra reorderer layer/barrier.
-        context.cmd_list.PushScope("SoftRaster ResolveCopy");
+        context.cmd_list.PushScopeWithTimeScope("SoftRaster ResolveCopy");
         context.cmd_list.CopyFrom(
             m_resolve_output_tex->GetView(),
             context.textures.lighting_output.tex->GetView(),
             "SoftRaster Resolve To Lighting"
         );
-        context.cmd_list.PopScope();
+        context.cmd_list.PopScopeWithTimeScope();
 
         context.cmd_list.PopScope();
     }

@@ -1275,7 +1275,7 @@ private:
     Command*                     current_barriers{nullptr};
     Array<std::function<void()>> callbacks;
     TCachedArgArray              cached_args;
-    Queue<std::string_view>      scope_stack;
+    Stack<std::string_view>      scope_stack;
 };
 class QueueCmd {};
 
@@ -1298,6 +1298,9 @@ public:
     virtual void        Present(SwapchainRef _swapchain, TextureView _target) = 0;
     virtual void        Sync()                                                = 0;
     virtual ProfileData GetProfilerEntry()                                    = 0;
+    virtual ProfileData GetLatestProfilerEntry() {
+        return GetProfilerEntry();
+    }
 
     CommandQueue& operator=(CommandQueue& other) = delete;
     CommandQueue(const CommandQueue& other)      = delete;

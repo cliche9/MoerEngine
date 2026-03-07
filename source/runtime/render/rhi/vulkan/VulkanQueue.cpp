@@ -3062,6 +3062,10 @@ ProfileData VkCommandQueue::GetProfilerEntry() {
     return profiler_storage.GetProfilerEntry();
 }
 
+ProfileData VkCommandQueue::GetLatestProfilerEntry() {
+    return profiler_storage.GetLatestProfilerEntry();
+}
+
 UniquePtr<VulkanAllocator> VkCommandQueue::GetAllocator() {
     if (executed_queue.Full()) {
         Complete(executed_queue.Front());

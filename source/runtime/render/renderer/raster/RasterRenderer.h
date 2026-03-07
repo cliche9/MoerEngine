@@ -1,5 +1,8 @@
 #pragma once
 
+#include <chrono>
+
+#include "misc/STL.h"
 #include "renderer/Renderer.h"
 #include "rhi/RHIResource.h"
 
@@ -96,6 +99,12 @@ private:
     UniquePtr<TensorRTPass> tensor_rt_pass;
     UniquePtr<UpsamplePass> upsample_pass;
 #endif
+
+    Array<double>        m_aoit_timing_history;
+    Array<double>        m_transparent_blend_timing_history;
+    Array<double>        m_soft_raster_total_timing_history;
+    Array<Array<double>> m_soft_raster_pass_timing_histories;
+    std::chrono::steady_clock::time_point m_last_transparency_timing_log_time{};
 
     // Other vars
     // TODO: rt_geometries 已迁移到 GpuScene，未来应移除

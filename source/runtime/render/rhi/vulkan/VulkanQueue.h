@@ -94,6 +94,23 @@ struct ProfilerStorage {
         }
         return data;
     }
+    ProfileData GetLatestProfilerEntry() {
+        ProfileData               data{};
+        Array<ProfileResultEntry> entries;
+        entries.reserve(name2sample.size());
+        uint last_frame = (cur_frame + s_queue_max_frame_in_flight - 1) % s_queue_max_frame_in_flight;
+        for (auto& [name, sample] : name2sample) {
+            if (sample.Latest() > 0) {
+                entries.push_back({name, double(sample.Latest()) / 1e6 * timestamp_period});
+            }
+        }
+        data.gpu_entries = std::move(entries);
+        data.cpu_entries.reserve(cpu_timestamps[last_frame].size());
+        for (auto& [name, timestamp] : cpu_timestamps[last_frame]) {
+            data.cpu_entries.emplace_back(name.data(), timestamp);
+        }
+        return data;
+    }
 
     void BeginProfilerSession(VulkanCmdList& _cmd, std::string_view _name);
     void EndProfilerSession(VulkanCmdList& _cmd, std::string_view _name);
@@ -129,6 +146,9 @@ struct ProfilerStorage {
             accumulated -= deltas[next_idx_to_store];
             deltas[next_idx_to_store] = _value;
             accumulated += _value;
+        }
+        uint64_t Latest() const {
+            return deltas[next_idx_to_store];
         }
     };
 
@@ -211,6 +231,7 @@ public:
     void        Present(SwapchainRef _viewport, TextureView _view) override;
     void        Sync() override;
     ProfileData GetProfilerEntry() override;
+    ProfileData GetLatestProfilerEntry() override;
 
     void                                      ExecuteThread();
     VulkanDevice&                             vk_device;

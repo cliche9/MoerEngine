@@ -72,6 +72,8 @@ public:
             return;
         }
 
+        context.cmd_list.PushScopeWithTimeScope("Hardware Alpha Blend");
+
         GeometryPassBindlessParam param;
         param.world2clip = Transpose(camera.GetViewProjectionMatrix());
 
@@ -117,6 +119,8 @@ public:
                     return color_attachment;
                 }()
             );
+
+        context.cmd_list.PopScopeWithTimeScope();
     }
 
 private:

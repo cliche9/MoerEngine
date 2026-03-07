@@ -108,7 +108,6 @@ static const Array<std::string> s_ai_trt_visualize_buffer_array = {
 }; // namespace Moer
 
 struct RasterConfig {
-
     // MARK: Geometry
 
     bool geometry_enable_alpha_test = true;

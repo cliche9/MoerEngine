@@ -153,6 +153,8 @@ public:
             return;
         }
 
+        context.cmd_list.PushScopeWithTimeScope("AOIT");
+
         // ====================================================================
         // 1. Clear: reset head pointers and atomic counter
         // ====================================================================
@@ -259,6 +261,8 @@ public:
             context.textures.lighting_output.tex->GetView(),
             "AOIT Resolve To Lighting"
         );
+
+        context.cmd_list.PopScopeWithTimeScope();
     }
 
 private:

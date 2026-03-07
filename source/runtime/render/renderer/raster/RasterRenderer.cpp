@@ -30,6 +30,185 @@
 
 namespace Moer::Render::Raster {
 
+constexpr uint s_transparency_timing_average_window = 20u;
+constexpr auto s_transparency_timing_log_interval   = std::chrono::seconds(10);
+
+enum class ETransparencyTimingMode {
+    None,
+    HardwareAlphaBlend,
+    AOIT,
+    SoftRasterOIT,
+};
+
+struct SoftRasterPassDef {
+    std::string_view profiler_name;
+    const char*      ui_label;
+};
+
+const Array<SoftRasterPassDef> s_soft_raster_pass_defs = {
+    {"SoftRaster Copy", "Copy"},
+    {"SoftRaster Clear", "Clear"},
+    {"SoftRaster Setup", "Setup"},
+    {"SoftRaster BinCounter", "BinCounter"},
+    {"SoftRaster BinPrefix", "BinPrefix"},
+    {"SoftRaster BinDispatch", "BinDispatch"},
+    {"SoftRaster BinCategorize", "BinCategorize"},
+    {"SoftRaster FineCount Low", "FineCount Low"},
+    {"SoftRaster FineCount High", "FineCount High"},
+    {"SoftRaster Alloc", "Alloc"},
+    {"SoftRaster ClearCount", "ClearCount"},
+    {"SoftRaster FineWrite Low", "FineWrite Low"},
+    {"SoftRaster FineWrite High", "FineWrite High"},
+    {"SoftRaster Sort", "Sort"},
+    {"SoftRaster Shade", "Shade"},
+    {"SoftRaster StatsReadback", "StatsReadback"},
+    {"SoftRaster ResolveCopy", "ResolveCopy"},
+};
+
+bool FindGpuTiming(const ProfileData& profile_data, std::string_view profiler_name, double& out_gpu_ms) {
+    for (const auto& entry : profile_data.gpu_entries) {
+        if (entry.name == profiler_name) {
+            out_gpu_ms = entry.time;
+            return true;
+        }
+    }
+    return false;
+}
+
+void RecordTimingSample(Array<double>& history, double gpu_ms) {
+    if (history.size() >= s_transparency_timing_average_window) {
+        history.erase(history.begin());
+    }
+    history.push_back(gpu_ms);
+}
+
+double GetTimingAverage(const Array<double>& history) {
+    if (history.empty()) {
+        return 0.0;
+    }
+
+    double sum = 0.0;
+    for (double sample : history) {
+        sum += sample;
+    }
+    return sum / static_cast<double>(history.size());
+}
+
+void ResetTimingHistory(Array<double>& history) {
+    history.clear();
+}
+
+bool UpdateTimingHistory(
+    const ProfileData& profile_data,
+    Array<double>&     history,
+    std::string_view   profiler_name
+) {
+    double latest_gpu_ms = 0.0;
+    if (!FindGpuTiming(profile_data, profiler_name, latest_gpu_ms)) {
+        history.clear();
+        return false;
+    }
+
+    RecordTimingSample(history, latest_gpu_ms);
+    return true;
+}
+
+void ResetSoftRasterTimingHistories(Array<double>& total_history, Array<Array<double>>& pass_histories) {
+    total_history.clear();
+    for (auto& history : pass_histories) {
+        history.clear();
+    }
+}
+
+bool UpdateSoftRasterTimingHistories(
+    const ProfileData& profile_data,
+    Array<double>&     total_history,
+    Array<Array<double>>& pass_histories
+) {
+    if (pass_histories.size() != s_soft_raster_pass_defs.size()) {
+        pass_histories.resize(s_soft_raster_pass_defs.size());
+    }
+
+    bool   has_timing_data     = false;
+    double latest_total_gpu_ms = 0.0;
+    for (uint i = 0; i < s_soft_raster_pass_defs.size(); ++i) {
+        double latest_pass_gpu_ms = 0.0;
+        if (!FindGpuTiming(profile_data, s_soft_raster_pass_defs[i].profiler_name, latest_pass_gpu_ms)) {
+            pass_histories[i].clear();
+            continue;
+        }
+
+        has_timing_data = true;
+        latest_total_gpu_ms += latest_pass_gpu_ms;
+        RecordTimingSample(pass_histories[i], latest_pass_gpu_ms);
+    }
+
+    if (!has_timing_data) {
+        total_history.clear();
+        return false;
+    }
+
+    RecordTimingSample(total_history, latest_total_gpu_ms);
+    return true;
+}
+
+void LogSoftRasterTimingSummary(const Array<double>& total_history, const Array<Array<double>>& pass_histories) {
+    if (total_history.empty()) {
+        return;
+    }
+
+    LOG_INFO(
+        "[TransparencyTiming] Software OIT avg over last {} frames: {:.3f} ms",
+        total_history.size(),
+        GetTimingAverage(total_history)
+    );
+    for (uint i = 0; i < s_soft_raster_pass_defs.size(); ++i) {
+        if (i >= pass_histories.size() || pass_histories[i].empty()) {
+            continue;
+        }
+        LOG_INFO(
+            "[TransparencyTiming]   {}: {:.3f} ms",
+            s_soft_raster_pass_defs[i].ui_label,
+            GetTimingAverage(pass_histories[i])
+        );
+    }
+}
+
+void LogTransparencyTimingSummary(
+    ETransparencyTimingMode        timing_mode,
+    const Array<double>&           hardware_blend_history,
+    const Array<double>&           aoit_history,
+    const Array<double>&           soft_total_history,
+    const Array<Array<double>>&    soft_pass_histories
+) {
+    switch (timing_mode) {
+        case ETransparencyTimingMode::HardwareAlphaBlend:
+            if (!hardware_blend_history.empty()) {
+                LOG_INFO(
+                    "[TransparencyTiming] Hardware Alpha Blend avg over last {} frames: {:.3f} ms",
+                    hardware_blend_history.size(),
+                    GetTimingAverage(hardware_blend_history)
+                );
+            }
+            break;
+        case ETransparencyTimingMode::AOIT:
+            if (!aoit_history.empty()) {
+                LOG_INFO(
+                    "[TransparencyTiming] AOIT avg over last {} frames: {:.3f} ms",
+                    aoit_history.size(),
+                    GetTimingAverage(aoit_history)
+                );
+            }
+            break;
+        case ETransparencyTimingMode::SoftRasterOIT:
+            LogSoftRasterTimingSummary(soft_total_history, soft_pass_histories);
+            break;
+        case ETransparencyTimingMode::None:
+        default:
+            break;
+    }
+}
+
 RasterRenderer::RasterRenderer(
     uint2&                        _resolution,
     const SharedPtr<EditorConfig> _config,
@@ -68,6 +247,7 @@ RasterRenderer::RasterRenderer(
     aa_pass            = MakeUnique<AaPass>(raster_context);
     bloom_pass         = MakeUnique<BloomPass>(raster_context);
     tonemapping_pass   = MakeUnique<TonemappingPass>(raster_context);
+    m_soft_raster_pass_timing_histories.resize(s_soft_raster_pass_defs.size());
 
 #if WITH_CUDA
     // 固定CudaPass位于AoPass之后（需要保证AoPass必定往 ao_output 中写入数据
@@ -168,6 +348,7 @@ void RasterRenderer::UpdateGlobalLightingData(
 
 bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, const EngineHooks& hooks) {
     auto& raster_context = *raster_context_ptr;
+    auto& raster_config  = editor_config->raster_config;
 
     LogSceneLoadStatus(*editor_config);
 
@@ -217,6 +398,62 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
         assert(false);
     }
 
+    if (editor_config->selected_render_method == ERenderMethod::Raster && scene.IsReady()) {
+        const auto profile_data = gfx_queue.GetLatestProfilerEntry();
+        auto       timing_mode  = ETransparencyTimingMode::None;
+
+        if (raster_config.soft_raster_oit_enable && soft_raster_oit_pass) {
+            if (UpdateSoftRasterTimingHistories(
+                    profile_data, m_soft_raster_total_timing_history, m_soft_raster_pass_timing_histories
+                )) {
+                timing_mode = ETransparencyTimingMode::SoftRasterOIT;
+            }
+            ResetTimingHistory(m_aoit_timing_history);
+            ResetTimingHistory(m_transparent_blend_timing_history);
+        } else if (raster_config.aoit_enable && aoit_pass) {
+            ResetSoftRasterTimingHistories(m_soft_raster_total_timing_history, m_soft_raster_pass_timing_histories);
+            if (UpdateTimingHistory(profile_data, m_aoit_timing_history, "AOIT")) {
+                timing_mode = ETransparencyTimingMode::AOIT;
+            }
+            ResetTimingHistory(m_transparent_blend_timing_history);
+        } else if (transparent_blend_pass) {
+            ResetSoftRasterTimingHistories(m_soft_raster_total_timing_history, m_soft_raster_pass_timing_histories);
+            ResetTimingHistory(m_aoit_timing_history);
+            if (UpdateTimingHistory(
+                    profile_data, m_transparent_blend_timing_history, "Hardware Alpha Blend"
+                )) {
+                timing_mode = ETransparencyTimingMode::HardwareAlphaBlend;
+            }
+        } else {
+            ResetSoftRasterTimingHistories(m_soft_raster_total_timing_history, m_soft_raster_pass_timing_histories);
+            ResetTimingHistory(m_aoit_timing_history);
+            ResetTimingHistory(m_transparent_blend_timing_history);
+        }
+
+        if (timing_mode != ETransparencyTimingMode::None) {
+            const auto now = std::chrono::steady_clock::now();
+            if (m_last_transparency_timing_log_time.time_since_epoch().count() == 0) {
+                m_last_transparency_timing_log_time = now;
+            } else if (now - m_last_transparency_timing_log_time >= s_transparency_timing_log_interval) {
+                LogTransparencyTimingSummary(
+                    timing_mode,
+                    m_transparent_blend_timing_history,
+                    m_aoit_timing_history,
+                    m_soft_raster_total_timing_history,
+                    m_soft_raster_pass_timing_histories
+                );
+                m_last_transparency_timing_log_time = now;
+            }
+        } else {
+            m_last_transparency_timing_log_time = {};
+        }
+    } else {
+        ResetSoftRasterTimingHistories(m_soft_raster_total_timing_history, m_soft_raster_pass_timing_histories);
+        ResetTimingHistory(m_aoit_timing_history);
+        ResetTimingHistory(m_transparent_blend_timing_history);
+        m_last_transparency_timing_log_time = {};
+    }
+
     // MARK: 2. Tick UI
     if (hooks.on_tick_ui) {
         hooks.on_tick_ui();
@@ -241,8 +478,7 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
             gfx_queue.Sync();
         }
 
-        const auto& raster_config = editor_config->raster_config;
-        auto&       camera        = scene.GetMainCamera().camera;
+        auto& camera = scene.GetMainCamera().camera;
 
         {
             // Jitter Camera for SMAA T2x
@@ -365,7 +601,14 @@ bool RasterRenderer::RunSingle(const SharedPtr<EditorConfig> editor_config, cons
         we're not waiting for the copy queue to finish, because operations we wanted are synced on host side, we use this timeline just to notifiy the validation layer
         that we've done flushing copy queue resources
         */
-    gfx_queue.Execute(cmd_list.Submit().Signal(timeline, time).DeleteResources());
+    const bool tick_raster_transparency_profiling =
+        scene.IsReady() && editor_config->selected_render_method == ERenderMethod::Raster;
+    auto submit = cmd_list.Submit().Signal(timeline, time).DeleteResources();
+    if (tick_raster_transparency_profiling) {
+        gfx_queue.Execute(std::move(submit).TickProfiling());
+    } else {
+        gfx_queue.Execute(std::move(submit));
+    }
     if (!skip_present) {
         gfx_queue.Present(swapchain, default_output_texture);
         if (hooks.on_present_windows) {
